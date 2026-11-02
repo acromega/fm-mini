@@ -1434,6 +1434,10 @@ struct FMMiniApp: App {
         }
         .defaultSize(width: 460, height: 760)
         .windowResizability(.contentMinSize)
+        .commands {
+            InstallationCommands()
+            AboutCommands()
+        }
 
         Window("Étendre le modèle", id: "extension") {
             InstallationView()
@@ -1441,9 +1445,13 @@ struct FMMiniApp: App {
         }
         .defaultSize(width: 520, height: 680)
         .windowResizability(.contentMinSize)
-        .commands {
-            InstallationCommands()
+
+        Window("À propos", id: "about") {
+            AboutView()
+                .preferredColorScheme(.light)
         }
+        .defaultSize(width: 520, height: 500)
+        .windowResizability(.contentSize)
     }
 }
 
@@ -1456,6 +1464,53 @@ struct InstallationCommands: Commands {
                 openWindow(id: "extension")
             }
         }
+    }
+}
+
+struct AboutCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("À propos de FM Mini") {
+                openWindow(id: "about")
+            }
+        }
+    }
+}
+
+struct AboutView: View {
+    private var version: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+    }
+
+    private var creditsImage: NSImage? {
+        guard let url = Bundle.main.url(forResource: "credits", withExtension: "jpg") else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if let creditsImage {
+                Image(nsImage: creditsImage)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            VStack(spacing: 4) {
+                Text("FM Mini").font(.headline.weight(.bold))
+                Text(version).font(.subheadline)
+                Text("acromega + Claude — 2026").font(.subheadline)
+            }
+            .multilineTextAlignment(.center)
+            Text("Tourne entièrement sur votre Mac avec le modèle Apple Foundation Models.")
+                .font(.caption)
+                .foregroundStyle(accessibleSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.white)
     }
 }
 

@@ -48,6 +48,7 @@ APP="$ROOT/build/FM Mini.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/fr.lproj"
 cp "$ROOT/.build/release/FMMini" "$APP/Contents/MacOS/FMMini"
+cp "$ROOT/Resources/credits.jpg" "$APP/Contents/Resources/credits.jpg"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -56,12 +57,13 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>org.local.fmmini</string>
   <key>CFBundleName</key><string>FM Mini</string>
   <key>CFBundleDevelopmentRegion</key><string>fr</string>
-  <key>CFBundleShortVersionString</key><string>1.3.6</string>
-  <key>CFBundleVersion</key><string>1.3.6</string>
+  <key>CFBundleShortVersionString</key><string>1.3.7</string>
+  <key>CFBundleVersion</key><string>1.3.7</string>
   <key>LSMinimumSystemVersion</key><string>27.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+xattr -cr "$APP"
 codesign --force --deep --sign - "$APP"
 print 'Application prête. Ouvrir avec :'
 print "open \"$APP\""

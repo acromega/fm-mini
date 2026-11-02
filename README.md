@@ -2,6 +2,8 @@
 
 FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans fichier joint, elle répond normalement. Avec un seul fichier joint, elle répond uniquement à partir de ce document.
 
+Crédits : acromega + Claude, 2026.
+
 Un document joint n’est envoyé qu’avec la première question : le badge « document chargé » confirme ensuite qu’il reste dans la conversation. La jauge sous l’en-tête indique l’occupation du contexte ; FM Mini compresse automatiquement les anciens échanges lorsqu’elle approche de la limite, sans retirer les bulles visibles. Les bulles peuvent être copiées par survol ou clic droit.
 
 ## Prérequis
