@@ -361,6 +361,15 @@ final class ChatModel: ObservableObject {
         Task { @MainActor [weak self] in await self?.refreshContextGauge() }
     }
 
+    var latestModelResponse: String? {
+        messages.last(where: { $0.role == .model && !$0.text.isEmpty })?.text
+    }
+
+    func copyLatestResponse() {
+        guard let latestModelResponse else { return }
+        BubbleClipboard.copy(latestModelResponse)
+    }
+
     var attachmentHint: String {
         let approximateWords = Int((Double(model.contextSize) * 0.9 / 1.4 / 100).rounded() * 100)
         let display = approximateWords > 0 ? approximateWords.formatted(.number.locale(Locale(identifier: "fr_FR"))) : "?"
@@ -1218,6 +1227,7 @@ struct FMMiniApp: App {
         .defaultSize(width: Personnalisation.tailleFenetreParDefaut.width, height: Personnalisation.tailleFenetreParDefaut.height)
         .windowResizability(.contentMinSize)
         .commands {
+            ConversationCommands(model: model)
             InstallationCommands()
             AboutCommands()
         }
@@ -1235,6 +1245,33 @@ struct FMMiniApp: App {
         }
         .defaultSize(width: 520, height: 500)
         .windowResizability(.contentSize)
+    }
+}
+
+struct ConversationCommands: Commands {
+    @ObservedObject var model: ChatModel
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("Nouvelle conversation") {
+                model.newConversation()
+            }
+            .keyboardShortcut("n", modifiers: .command)
+
+            Button("Joindre un fichier…") {
+                model.chooseFile()
+            }
+            .keyboardShortcut("o", modifiers: .command)
+            .disabled(model.isSending || model.unavailableReason != nil)
+        }
+
+        CommandGroup(after: .pasteboard) {
+            Button("Copier la dernière réponse") {
+                model.copyLatestResponse()
+            }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+            .disabled(model.latestModelResponse == nil)
+        }
     }
 }
 
