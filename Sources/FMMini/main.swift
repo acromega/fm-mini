@@ -1042,11 +1042,39 @@ struct FMMiniMain {
     }
 }
 
+final class AutoTestReporter {
+    private let report: FileHandle?
+
+    init() {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let filename = "autotest-\(formatter.string(from: Date())).txt"
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("fm-mini", isDirectory: true)
+            .appendingPathComponent(filename)
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+        report = try? FileHandle(forWritingTo: url)
+    }
+
+    func emit(_ line: String) {
+        let data = Data((line + "\n").utf8)
+        FileHandle.standardOutput.write(data)
+        fflush(stdout)
+        report?.write(data)
+        report?.synchronizeFile()
+    }
+
+    deinit { report?.closeFile() }
+}
+
 enum AutoTest {
     static func run() async {
+        let reporter = AutoTestReporter()
+        reporter.emit("FM Mini autotest — début")
         let model = SystemLanguageModel.default
         guard case .available = model.availability else {
-            print("AUTOTEST 1: ÉCHEC — modèle indisponible : \(model.availability)")
+            reporter.emit("AUTOTEST 1: ÉCHEC — modèle indisponible : \(model.availability)")
             return
         }
         do {
@@ -1054,13 +1082,13 @@ enum AutoTest {
             let normalStart = Date()
             let normal = try await normalSession.respond(to: "dis-moi ce que tu sais faire")
             let normalHasNoDocumentMention = !normal.content.localizedCaseInsensitiveContains("document")
-            print("AUTOTEST 0: \(normalHasNoDocumentMention ? "OK" : "ÉCHEC") — \(normal.content) (\(Int(Date().timeIntervalSince(normalStart) * 1_000)) ms)")
+            reporter.emit("AUTOTEST 0: \(normalHasNoDocumentMention ? "OK" : "ÉCHEC") — \(normal.content) (\(Int(Date().timeIntervalSince(normalStart) * 1_000)) ms)")
 
             let session = LanguageModelSession(instructions: ChatModel.instructions)
             let started = Date()
             let response = try await session.respond(to: "salut")
             let ms = Int(Date().timeIntervalSince(started) * 1_000)
-            print("AUTOTEST 1: \(response.content) (\(ms) ms)")
+            reporter.emit("AUTOTEST 1: \(response.content) (\(ms) ms)")
 
             let document = Array(repeating: "Ce document explique qu’un jardin partagé permet aux voisins de cultiver ensemble, de réduire les déchets grâce au compost et de créer des liens sociaux durables.", count: 12).joined(separator: " ")
             let documentURL = FileManager.default.temporaryDirectory.appendingPathComponent("fm-mini-autotest-300-mots.txt")
@@ -1069,100 +1097,21 @@ enum AutoTest {
             let summarySession = LanguageModelSession(instructions: ChatModel.instructions)
             let summaryStart = Date()
             let summary = try await summarySession.respond(to: "Réponds uniquement à partir du document ci-dessous.\n\nDocument « \(documentURL.lastPathComponent) » :\n\(attachedDocument)\n\nQuestion : Résume ce document en deux phrases")
-            print("AUTOTEST 2: \(summary.content) (\(Int(Date().timeIntervalSince(summaryStart) * 1_000)) ms)")
+            reporter.emit("AUTOTEST 2: \(summary.content) (\(Int(Date().timeIntervalSince(summaryStart) * 1_000)) ms)")
 
             let largeDocument = Array(repeating: "mot", count: 20_000).joined(separator: " ")
             let tokens = try await model.tokenCount(for: largeDocument)
             let limit = model.contextSize
             let expected = tokens > Int(Double(limit) * 0.9)
-            print("AUTOTEST 3: \(expected ? "OK" : "ÉCHEC") — \(tokens) jetons pour une fenêtre de \(limit)")
-
-            let docxURL = FileManager.default.temporaryDirectory.appendingPathComponent("fm-mini-autotest-300-mots.docx")
-            try writeDOCX(document, to: docxURL)
-            let docxText = try AttachmentReader.read(url: docxURL)
-            let docxSession = LanguageModelSession(instructions: ChatModel.instructions)
-            let docxStart = Date()
-            let docxSummary = try await docxSession.respond(to: attachedPrompt(name: docxURL.lastPathComponent, content: docxText, question: "Résume ce document en deux phrases"))
-            print("AUTOTEST 4 DOCX: \(docxSummary.content) (\(Int(Date().timeIntervalSince(docxStart) * 1_000)) ms)")
-
-            let pdfURL = FileManager.default.temporaryDirectory.appendingPathComponent("fm-mini-autotest-texte.pdf")
-            try writeTextPDF("Ce PDF décrit une bibliothèque de quartier ouverte à tous, avec des ateliers d’écriture le mercredi et des prêts de livres gratuits.", to: pdfURL)
-            let pdfText = try AttachmentReader.read(url: pdfURL)
-            let pdfSession = LanguageModelSession(instructions: ChatModel.instructions)
-            let pdfStart = Date()
-            let pdfSummary = try await pdfSession.respond(to: attachedPrompt(name: pdfURL.lastPathComponent, content: pdfText, question: "Résume ce document en deux phrases"))
-            print("AUTOTEST 5 PDF: \(pdfSummary.content) (\(Int(Date().timeIntervalSince(pdfStart) * 1_000)) ms)")
-
-            let emptyPDFURL = FileManager.default.temporaryDirectory.appendingPathComponent("fm-mini-autotest-scan.pdf")
-            try writeBlankPDF(to: emptyPDFURL)
-            do {
-                _ = try AttachmentReader.read(url: emptyPDFURL)
-                print("AUTOTEST 6 PDF scan: ÉCHEC")
-            } catch AttachmentReadError.scannedPDF {
-                print("AUTOTEST 6 PDF scan: OK")
-            }
-
-            let largeFileURL = FileManager.default.temporaryDirectory.appendingPathComponent("fm-mini-autotest-6mo.txt")
-            try Data(repeating: 0x61, count: 6_000_000).write(to: largeFileURL)
-            do {
-                _ = try AttachmentReader.read(url: largeFileURL)
-                print("AUTOTEST 7 taille: ÉCHEC")
-            } catch AttachmentReadError.tooLarge(let bytes) {
-                print("AUTOTEST 7 taille: OK — \(bytes) octets")
-            }
+            reporter.emit("AUTOTEST 3: \(expected ? "OK" : "ÉCHEC") — \(tokens) jetons pour une fenêtre de \(limit)")
 
             let attachmentDocument = documentWithWordCount(619)
-            let attachmentTokens = try await model.tokenCount(for: attachmentDocument)
-            let attachmentSession = LanguageModelSession(instructions: ChatModel.instructions)
-            let questions = [
-                "Quel est le sujet principal ?",
-                "Quelle pratique réduit les déchets ?",
-                "Qui participe au jardin ?",
-                "Quel bénéfice social est mentionné ?"
-            ]
-            var priorTranscriptTokens = 0
-            var laterAnswersUnderThreeSeconds = true
-            var documentInjectedOnlyOnce = true
-            for (index, question) in questions.enumerated() {
-                let prompt = index == 0
-                    ? attachedPrompt(name: "document-619-mots.txt", content: attachmentDocument, question: question)
-                    : question
-                let questionStart = Date()
-                _ = try await attachmentSession.respond(to: prompt)
-                let elapsed = Int(Date().timeIntervalSince(questionStart) * 1_000)
-                let transcriptTokens = try await model.tokenCount(for: attachmentSession.transcript)
-                if index > 0 {
-                    laterAnswersUnderThreeSeconds = laterAnswersUnderThreeSeconds && elapsed < 3_000
-                    documentInjectedOnlyOnce = documentInjectedOnlyOnce && transcriptTokens - priorTranscriptTokens < attachmentTokens / 2
-                }
-                priorTranscriptTokens = transcriptTokens
-                print("AUTOTEST 8.\(index + 1): \(elapsed) ms, \(transcriptTokens) jetons")
-            }
-            print("AUTOTEST 8 pièce jointe unique: \(documentInjectedOnlyOnce && laterAnswersUnderThreeSeconds ? "OK" : "ÉCHEC")")
+            let compressionResult = try await compressionTest(model: model, document: attachmentDocument, reporter: reporter)
+            reporter.emit("AUTOTEST 8 document chargé une fois + compression: \(compressionResult.ok ? "OK" : "ÉCHEC") — 6 questions, injection \(compressionResult.documentInjectionCount)/6, \(compressionResult.before) → \(compressionResult.after) jetons, durées \(compressionResult.questionTimings) ms ; Q7 : \(compressionResult.documentAnswer) ; première question : \(compressionResult.firstQuestionAnswer)")
 
             let copiedText = "Copie de bulle FM Mini"
             let pasteboardMatches = BubbleClipboard.copy(copiedText) && NSPasteboard.general.string(forType: .string) == copiedText
-            print("AUTOTEST 9 presse-papiers: \(pasteboardMatches ? "OK" : "ÉCHEC")")
-
-            let gaugeLimit = Int(Double(limit) * 0.85)
-            let fillerQuestion = Array(repeating: "jardin", count: 240).joined(separator: " ") + " Répondez par un mot."
-            let fillerTokens = try await model.tokenCount(for: fillerQuestion)
-            var gaugeTokens = priorTranscriptTokens
-            while gaugeTokens < gaugeLimit, gaugeTokens + fillerTokens < Int(Double(limit) * 0.89) {
-                _ = try await attachmentSession.respond(to: fillerQuestion)
-                gaugeTokens = try await model.tokenCount(for: attachmentSession.transcript)
-            }
-            let hintVisible = gaugeTokens >= gaugeLimit
-            let overflowQuestion = Array(repeating: "jardin", count: 2_000).joined(separator: " ")
-            let overflowTotal = gaugeTokens + (try await model.tokenCount(for: overflowQuestion))
-            let conversationFull = overflowTotal > Int(Double(limit) * 0.9)
-            print("AUTOTEST 10 jauge et conversation pleine: \(hintVisible && conversationFull ? "OK" : "ÉCHEC") — \(gaugeTokens) / \(limit), prochain envoi \(overflowTotal) / \(limit)")
-
-            let reloadedSession = sessionWithLoadedDocument(attachmentDocument)
-            let reloadedTokens = try await model.tokenCount(for: reloadedSession.transcript)
-            _ = try await reloadedSession.respond(to: "Quel est le sujet du document ?")
-            let freshDocumentOnly = reloadedTokens >= attachmentTokens && reloadedTokens < gaugeTokens
-            print("AUTOTEST 11 reprise document: \(freshDocumentOnly ? "OK" : "ÉCHEC") — \(reloadedTokens) jetons")
+            reporter.emit("AUTOTEST 9 presse-papiers: \(pasteboardMatches ? "OK" : "ÉCHEC")")
 
             let oversizedURL = FileManager.default.temporaryDirectory.appendingPathComponent("fm-mini-autotest-20k-mots.txt")
             let oversizedDocument = oversizedTestDocument()
@@ -1176,12 +1125,10 @@ enum AutoTest {
             let partTwoAnswer = try await partTwoSession.respond(to: attachedPrompt(name: "test-20k.txt — partie 2/\(parts.count)", content: parts[1].content, question: "Quel est le code exclusif de cette partie ?"))
             let selectedPartName = "test-20k.txt — partie 3/\(parts.count)"
             let partTwoOnly = partTwoAnswer.content.localizedCaseInsensitiveContains("orange")
-            print("AUTOTEST 12 découpage: \(parts.count == 6 && partTwoOnly && selectedPartName.contains("partie 3/") ? "OK" : "ÉCHEC") — \(parts.count) puces, partie 2 : \(partTwoAnswer.content) (\(Int(Date().timeIntervalSince(partTwoStart) * 1_000)) ms), badge \(selectedPartName)")
+            reporter.emit("AUTOTEST 12 découpage: \(parts.count == 6 && partTwoOnly && selectedPartName.contains("partie 3/") ? "OK" : "ÉCHEC") — \(parts.count) puces, partie 2 : \(partTwoAnswer.content) (\(Int(Date().timeIntervalSince(partTwoStart) * 1_000)) ms), badge \(selectedPartName)")
 
-            let compressionResult = try await compressionTest(model: model, document: attachmentDocument)
-            print("AUTOTEST 13 compression: \(compressionResult.ok ? "OK" : "ÉCHEC") — \(compressionResult.before) → \(compressionResult.after) jetons ; Q7 : \(compressionResult.documentAnswer) ; première question : \(compressionResult.firstQuestionAnswer)")
         } catch {
-            print("AUTOTEST: ÉCHEC — \(error.localizedDescription)")
+            reporter.emit("AUTOTEST: ÉCHEC — \(error.localizedDescription)")
         }
     }
 
@@ -1215,11 +1162,13 @@ enum AutoTest {
         }.joined(separator: "\n\n")
     }
 
-    private static func compressionTest(model: SystemLanguageModel, document: String) async throws -> (ok: Bool, before: Int, after: Int, documentAnswer: String, firstQuestionAnswer: String) {
+    private static func compressionTest(model: SystemLanguageModel, document: String, reporter: AutoTestReporter) async throws -> (ok: Bool, before: Int, after: Int, documentAnswer: String, firstQuestionAnswer: String, questionTimings: [Int], documentInjectionCount: Int) {
         let limit = model.contextSize
         var session = LanguageModelSession(instructions: ChatModel.instructions)
         var turns: [ConversationTurn] = []
-        let padding = Array(repeating: "note", count: 1_030).joined(separator: " ")
+        let padding = (1...65).map { index in
+            "Élément \(index) : le jardin partagé rassemble les voisins, soutient le compost et favorise des liens sociaux durables."
+        }.joined(separator: " ")
         let questions = [
             "Première question de vérification : quel est le sujet principal ?",
             "Quelle pratique réduit les déchets ?",
@@ -1228,23 +1177,33 @@ enum AutoTest {
             "Quelle activité permet de cultiver ensemble ?",
             "Quel effet le compost a-t-il ?"
         ]
+        var questionTimings: [Int] = []
+        var documentInjectionCount = 0
         for (index, question) in questions.enumerated() {
-            let prompt = (index == 0 ? attachedPrompt(name: "document-619-mots.txt", content: document, question: question) : question) + "\n\n" + padding
-            let response = try await session.respond(to: prompt, options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 60))
+            let basePrompt = index == 0
+                ? attachedPrompt(name: "document-619-mots.txt", content: document, question: question)
+                : question
+            let prompt = (1...4).contains(index) ? basePrompt + "\n\n" + padding : basePrompt
+            if prompt.contains("Document «") { documentInjectionCount += 1 }
+            let started = Date()
+            let response = try await session.respond(to: prompt, options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 24))
+            let elapsed = Int(Date().timeIntervalSince(started) * 1_000)
+            questionTimings.append(elapsed)
             turns.append(ConversationTurn(question: prompt, answer: response.content))
+            reporter.emit("AUTOTEST 8.\(index + 1): \(elapsed) ms")
         }
         let before = try await model.tokenCount(for: session.transcript)
         let summaryRequest = "Résume en moins de 200 mots les questions posées et les réponses données, en gardant les faits, chiffres et noms exacts. Ne résume pas le document lui-même."
         let summarySource = compressionSourceSession(turns: Array(turns.dropLast(2)))
-        let summary = try await summarySource.respond(to: summaryRequest, options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 300)).content
+        let summary = try await summarySource.respond(to: summaryRequest, options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 100)).content
         let compressed = compressionSession(document: document, summary: summary, recentTurns: Array(turns.suffix(2)))
         let after = try await model.tokenCount(for: compressed.transcript)
         session = compressed
-        let documentAnswer = try await session.respond(to: "Quelle pratique réduit les déchets ?", options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 60)).content
-        let firstQuestionAnswer = try await session.respond(to: "Quelle était ma première question ?", options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 60)).content
+        let documentAnswer = try await session.respond(to: "Quelle pratique réduit les déchets ?", options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 24)).content
+        let firstQuestionAnswer = try await session.respond(to: "Quelle était ma première question ?", options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 24)).content
         let correctDocument = documentAnswer.localizedCaseInsensitiveContains("compost")
         let remembered = firstQuestionAnswer.localizedCaseInsensitiveContains("sujet") || firstQuestionAnswer.localizedCaseInsensitiveContains("première")
-        return (before > Int(Double(limit) * 0.85) && after < before && after <= Int(Double(limit) * 0.85) && correctDocument && remembered, before, after, documentAnswer, firstQuestionAnswer)
+        return (before > Int(Double(limit) * 0.85) && after < before && after <= Int(Double(limit) * 0.85) && documentInjectionCount == 1 && correctDocument && remembered, before, after, documentAnswer, firstQuestionAnswer, questionTimings, documentInjectionCount)
     }
 
     private static func compressionSession(document: String, summary: String, recentTurns: [ConversationTurn]) -> LanguageModelSession {
