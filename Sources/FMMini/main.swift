@@ -438,14 +438,18 @@ final class ChatModel: ObservableObject {
         } else {
             sentText = question
         }
+        isSending = true
         input = ""
         responseTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            var startedModel = false
             do {
                 try Task.checkCancellation()
                 let contextSize = self.model.contextSize
                 guard contextSize > 0 else {
                     self.messages.append(ChatItem(role: .error, text: "Impossible de connaître la fenêtre de contexte du modèle.", durationMilliseconds: nil))
+                    self.input = question
+                    self.isSending = false
                     return
                 }
                 if let attachment, injectsAttachment {
@@ -455,6 +459,7 @@ final class ChatModel: ObservableObject {
                     guard fileOnlyTotal <= Int(Double(contextSize) * 0.9) else {
                         self.showOversizedDocumentCard(attachment)
                         self.input = question
+                        self.isSending = false
                         return
                     }
                 }
@@ -463,6 +468,8 @@ final class ChatModel: ObservableObject {
                 let totalTokens = transcriptTokens + messageTokens
                 guard totalTokens <= Int(Double(contextSize) * 0.9) else {
                     self.messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(totalTokens) / \(contextSize) jetons).", durationMilliseconds: nil, action: .conversationFull))
+                    self.input = question
+                    self.isSending = false
                     return
                 }
 
@@ -473,7 +480,7 @@ final class ChatModel: ObservableObject {
                 self.messages.append(ChatItem(role: .user, text: question, durationMilliseconds: nil))
                 let responseID = UUID()
                 self.messages.append(ChatItem(id: responseID, role: .model, text: "", durationMilliseconds: nil))
-                self.isSending = true
+                startedModel = true
                 let started = Date()
                 for try await snapshot in session.streamResponse(to: sentText) {
                     try Task.checkCancellation()
@@ -490,6 +497,7 @@ final class ChatModel: ObservableObject {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
+                if !startedModel { self.input = question }
                 self.messages.append(ChatItem(role: .error, text: self.errorText(error), durationMilliseconds: nil))
                 self.isSending = false
             }
