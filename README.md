@@ -1,10 +1,10 @@
-# FM Mini 1.3.11
+# FM Mini 1.3.12
 
-FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans fichier joint, elle répond normalement. Avec un seul fichier joint, elle répond uniquement à partir de ce document.
+FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans PJ, elle répond normalement. Avec une seule PJ, elle répond uniquement à partir de ce document.
 
 Crédits : acromega + Claude, 2026.
 
-Un document joint n’est envoyé qu’avec la première question : le badge « document chargé » confirme ensuite qu’il reste dans la conversation. La jauge sous l’en-tête indique l’occupation du contexte ; FM Mini compresse automatiquement les anciens échanges lorsqu’elle approche de la limite, sans retirer les bulles visibles. Les bulles peuvent être copiées par survol ou clic droit.
+Une PJ n’est envoyée qu’avec la première question : le badge « PJ : <nom> (N jetons) » confirme ensuite qu’elle reste dans la conversation. La jauge sous l’en-tête indique l’occupation du contexte ; FM Mini compresse automatiquement les anciens échanges lorsqu’elle approche de la limite, sans retirer les bulles visibles. Les bulles peuvent être copiées par survol ou clic droit.
 
 ## Prérequis
 
@@ -29,7 +29,7 @@ Vous pouvez adapter les textes, les couleurs, les crédits et la taille de la fe
 2. Modifiez seulement le texte entre guillemets (ou les deux nombres de `CGSize` pour la taille de la fenêtre), puis enregistrez.
 3. Dans Terminal, à la racine de `fm-mini`, relancez `./make-app.sh`.
 
-Par exemple, vous pouvez changer une puce en remplaçant le texte de `puceResumeLibelle` et `puceResumeTexte`, tutoyer en remplaçant « vous » par « tu » dans `consigneModele`, ou agrandir la fenêtre en augmentant `width` et `height` de `tailleFenetreParDefaut`. Ne modifiez ni les noms des constantes, ni les commentaires, ni un autre fichier du dossier.
+Par exemple, vous pouvez changer une puce en remplaçant le texte de `puceResume`, tutoyer en remplaçant « vous » par « tu » dans `consigneModele`, ou agrandir la fenêtre en augmentant `width` et `height` de `tailleFenetreParDefaut`. Ne modifiez ni les noms des constantes, ni les commentaires, ni un autre fichier du dossier.
 
 ## Aller plus loin
 
@@ -37,13 +37,19 @@ Le menu **Aide → Aller plus loin…**, ou le lien au bas de l’accueil, ouvre
 
 Les demandes copiées renvoient à [POUR-LES-ASSISTANTS.md](POUR-LES-ASSISTANTS.md) et à [SPEC.md](SPEC.md), qui décrivent les règles de travail du projet.
 
-Vous pouvez joindre un fichier `.txt`, `.md`, `.csv`, `.json`, `.log`, `.rtf`, `.docx` ou `.pdf` contenant du texte. Les PDF issus d’un scan sans texte ne peuvent pas être lus. Appuyez sur Entrée pour envoyer ; Maj-Entrée ajoute une ligne. Le temps de réponse est affiché sous chaque réponse du modèle.
+Vous pouvez ajouter une PJ `.txt`, `.md`, `.csv`, `.json`, `.log`, `.rtf`, `.docx` ou `.pdf` contenant du texte. Les PDF issus d’un scan sans texte ne peuvent pas être lus. À l’accueil, les cinq puces ouvrent le sélecteur si aucune PJ n’est chargée ; après acceptation, elles placent leur demande dans le champ sans l’envoyer. Appuyez sur Entrée pour envoyer ; Maj-Entrée ajoute une ligne. Le temps de réponse est affiché sous chaque réponse du modèle.
+
+- « Résume la PJ en 200 mots environ. »
+- « Corrige l'orthographe et la grammaire de la PJ, en gardant le sens. »
+- « Crée un quiz de cinq questions à partir de la PJ, avec les réponses. »
+- « Extrais les noms, dates et chiffres de la PJ. »
+- « Traduire la PJ en… »
 
 ## Menus et clavier
 
-Le menu **Fichier** propose **Nouvelle conversation** (⌘N), **Joindre un fichier…** (⌘O) et **Fermer** (⌘W). Le menu **Édition** propose aussi **Copier la dernière réponse** (⌘⇧C). Ces raccourcis fonctionnent même lorsque vous écrivez votre message.
+Le menu **Fichier** propose **Nouvelle conversation** (⌘N), **Ajouter une PJ…** (⌘O) et **Fermer** (⌘W). Le menu **Édition** propose aussi **Copier la dernière réponse** (⌘⇧C). Ces raccourcis fonctionnent même lorsque vous écrivez votre message.
 
-Tab passe de **Message** à **Envoyer**, **Joindre un fichier…**, puis **Nouvelle conversation**, avant de revenir au message ; Maj-Tab suit le chemin inverse. Un bouton indisponible est ignoré. Le bouton actif est entouré et s’active avec Espace ou Entrée.
+Tab passe de **Message** à **Envoyer**, **Ajouter une PJ…**, puis **Nouvelle conversation**, avant de revenir au message ; Maj-Tab suit le chemin inverse. Un bouton indisponible est ignoré. Le bouton actif est entouré et s’active avec Espace ou Entrée.
 
 ## Et si mon document est trop long ?
 
@@ -72,4 +78,4 @@ FM Mini ne sait pas compter, comparer, détecter une contradiction ou dire de fa
 
 ## Vérification technique
 
-Si l’interface ne peut pas être contrôlée automatiquement, ouvrez **Terminal.app**, placez-vous dans le dossier `fm-mini`, puis exécutez `build/FM Mini.app/Contents/MacOS/FMMini --autotest`. Il vérifie la réponse normale sans document, « salut », un résumé, la fenêtre de contexte, la lecture du DOCX et du PDF sans texte des fixtures, la limite de 5 Mo, le découpage d’un document de 20 000 mots et la compression d’une conversation.
+Si l’interface ne peut pas être contrôlée automatiquement, ouvrez **Terminal.app**, placez-vous dans le dossier `fm-mini`, puis exécutez `build/FM Mini.app/Contents/MacOS/FMMini --autotest`. Il vérifie la réponse normale sans document, « salut », un résumé, les puces PJ (annulation, insertion sans envoi et accueil à 460 × 760), la fenêtre de contexte, la lecture du DOCX et du PDF sans texte des fixtures, la limite de 5 Mo, le découpage d’un document de 20 000 mots et la compression d’une conversation.
