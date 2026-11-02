@@ -307,7 +307,14 @@ final class ChatModel: ObservableObject {
             Task { @MainActor in
                 do {
                     let tokens = try await self.model.tokenCount(for: content)
+                    if self.attachment?.isLoaded == true {
+                        self.session = self.newSession()
+                        self.turns = []
+                        self.messages = []
+                        self.contextTokenCount = 0
+                    }
                     self.attachment = TextAttachment(name: url.lastPathComponent, content: content, tokenCount: tokens)
+                    await self.refreshContextGauge()
                 } catch {
                     self.messages.append(ChatItem(role: .error, text: self.errorText(error), durationMilliseconds: nil))
                 }
@@ -672,7 +679,7 @@ struct ContextGauge: View {
                 .controlSize(.small)
                 .tint(color)
             if model.contextRatio >= 0.85 {
-                Text("Conversation presque pleine — pensez à la renouveler.")
+                Text("Conversation presque pleine.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
