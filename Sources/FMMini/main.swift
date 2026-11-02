@@ -405,6 +405,14 @@ final class ChatModel: ObservableObject {
         inputRevision += 1
     }
 
+    func useAttachmentSuggestion(_ text: String) {
+        if attachment != nil {
+            setInput(text)
+        } else {
+            chooseFile(questionAfterSelection: text)
+        }
+    }
+
     func chooseFile(questionAfterSelection: String? = nil) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false
@@ -422,7 +430,6 @@ final class ChatModel: ObservableObject {
                 let content = try await Task.detached(priority: .userInitiated) {
                     try AttachmentReader.read(url: url)
                 }.value
-                if let questionAfterSelection { self.setInput(questionAfterSelection) }
                 let tokens = try await self.model.tokenCount(for: content)
                 if self.attachment?.isLoaded == true {
                     self.session = self.newSession()
@@ -433,6 +440,7 @@ final class ChatModel: ObservableObject {
                     self.compressionFailed = false
                 }
                 self.attachment = TextAttachment(name: url.lastPathComponent, content: content, tokenCount: tokens)
+                if let questionAfterSelection { self.setInput(questionAfterSelection) }
                 await self.refreshContextGauge()
             } catch let error as AttachmentReadError {
                 self.messages.append(ChatItem(role: .error, text: self.attachmentErrorText(error), durationMilliseconds: nil))
@@ -998,9 +1006,10 @@ struct WelcomeView: View {
     @Environment(\.openWindow) private var openWindow
 
     private let suggestions = [
-        (Personnalisation.puceResumeLibelle, Personnalisation.puceResumeTexte),
-        (Personnalisation.puceCorrectionLibelle, Personnalisation.puceCorrectionTexte),
-        (Personnalisation.puceReformulationLibelle, Personnalisation.puceReformulationTexte)
+        Personnalisation.puceResume,
+        Personnalisation.puceCorrection,
+        Personnalisation.puceQuiz,
+        Personnalisation.puceExtraction
     ]
 
     var body: some View {
@@ -1017,12 +1026,11 @@ struct WelcomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 380)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
-                ForEach(suggestions, id: \.0) { suggestion in
-                    SuggestionChip(title: suggestion.0) { model.setInput(suggestion.1) }
+                ForEach(suggestions, id: \.self) { suggestion in
+                    SuggestionChip(title: suggestion) { model.useAttachmentSuggestion(suggestion) }
                 }
-                TranslationMenu(languages: model.translationLanguages) { language in model.setInput(String(format: Personnalisation.puceTraductionTexte, language.name)) }
-                SuggestionChip(title: Personnalisation.puceDocumentLibelle) {
-                    model.chooseFile(questionAfterSelection: Personnalisation.puceDocumentTexte)
+                TranslationMenu(languages: model.translationLanguages) { language in
+                    model.useAttachmentSuggestion(String(format: Personnalisation.puceTraductionTexte, language.name))
                 }
             }
             .frame(maxWidth: 650)
