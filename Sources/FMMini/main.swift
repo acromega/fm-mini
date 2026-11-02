@@ -751,6 +751,7 @@ struct ContextGauge: View {
 
 struct WelcomeView: View {
     @ObservedObject var model: ChatModel
+    @Environment(\.openWindow) private var openWindow
 
     private let suggestions = [
         "Résume ce texte en trois phrases : ",
@@ -781,6 +782,11 @@ struct WelcomeView: View {
                 }
             }
             .frame(maxWidth: 650)
+            Button("Aller plus loin → Compléter l’installation") {
+                openWindow(id: "installation")
+            }
+            .buttonStyle(.link)
+            .font(.caption)
         }
     }
 }
@@ -933,6 +939,255 @@ struct OversizedDocumentCard: View {
     }
 }
 
+struct InstallationSection: Identifiable {
+    let title: String
+    let tools: [InstallationTool]
+    var id: String { title }
+}
+
+struct InstallationTool: Identifiable {
+    let id: String
+    let name: String
+    let about: String
+    let needed: String
+    let unnecessary: String
+    let statusKey: String?
+    let url: String?
+    let tooltip: String?
+}
+
+enum InstallationAvailability {
+    case checking
+    case detected(String?)
+    case unavailable
+}
+
+@MainActor
+final class InstallationModel: ObservableObject {
+    @Published private(set) var statuses: [String: InstallationAvailability] = [:]
+
+    init() {
+        Task { [weak self] in
+            let results = await InstallationChecker.checkAll()
+            self?.statuses = results
+        }
+    }
+
+    func status(for tool: InstallationTool) -> InstallationAvailability? {
+        guard let key = tool.statusKey else { return nil }
+        return statuses[key] ?? .checking
+    }
+
+    func open(_ tool: InstallationTool) {
+        InstallationActions.open(tool)
+    }
+}
+
+enum InstallationChecker {
+    static func checkAll() async -> [String: InstallationAvailability] {
+        async let lmServerActive = lmStudioServerActive()
+        let fileManager = FileManager.default
+        let lmStudioApp = fileManager.fileExists(atPath: "/Applications/LM Studio.app")
+        let lmServer = await lmServerActive
+        return [
+            "fm": fileManager.fileExists(atPath: "/usr/bin/fm") ? .detected(nil) : .unavailable,
+            "shortcuts": .detected(nil),
+            "lmstudio": (lmStudioApp || lmServer) ? .detected(lmServer ? "serveur actif" : nil) : .unavailable,
+            "ollama": fileManager.fileExists(atPath: "/Applications/Ollama.app") ? .detected(nil) : .unavailable,
+            "homebrew": fileManager.fileExists(atPath: "/opt/homebrew/bin/brew") ? .detected(nil) : .unavailable,
+            "apfel": commandSucceeds("/usr/bin/which", ["apfel"]) ? .detected(nil) : .unavailable,
+            "clt": commandSucceeds("/usr/bin/xcode-select", ["-p"]) ? .detected(nil) : .unavailable,
+            "python-sdk": commandSucceeds("/usr/bin/env", ["python3", "-c", "import apple_fm_sdk"]) ? .detected(nil) : .unavailable,
+            "xcode": fileManager.fileExists(atPath: "/Applications/Xcode.app") ? .detected(nil) : .unavailable
+        ]
+    }
+
+    private static func commandSucceeds(_ executable: String, _ arguments: [String]) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    private static func lmStudioServerActive() async -> Bool {
+        var request = URLRequest(url: URL(string: "http://localhost:1234/v1/models")!)
+        request.timeoutInterval = 0.5
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 0.5
+        configuration.timeoutIntervalForResource = 0.8
+        configuration.waitsForConnectivity = false
+        do {
+            let (_, response) = try await URLSession(configuration: configuration).data(for: request)
+            return (response as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            return false
+        }
+    }
+}
+
+enum InstallationActions {
+    static func open(_ tool: InstallationTool) {
+        switch tool.id {
+        case "fm", "homebrew", "apfel", "clt", "python-sdk":
+            openTerminal()
+        case "shortcuts":
+            openLocalApplication("/System/Applications/Shortcuts.app", fallbackURL: URL(string: "shortcuts://")!)
+        case "lmstudio":
+            openLocalApplication("/Applications/LM Studio.app", fallbackURL: URL(string: tool.url!)!)
+        case "ollama":
+            openLocalApplication("/Applications/Ollama.app", fallbackURL: URL(string: tool.url!)!)
+        case "xcode":
+            openLocalApplication("/Applications/Xcode.app", fallbackURL: URL(string: tool.url!)!)
+        case "apple-docs":
+            openURLs([
+                "https://developer.apple.com/documentation/foundationmodels",
+                "https://developer.apple.com/videos/play/wwdc2026/334/"
+            ])
+        case "mcp":
+            openURLs([
+                "https://github.com/airy10/AppleFoundationMCPTool",
+                "https://github.com/phimage/mcp-foundation-models"
+            ])
+        default:
+            if let url = tool.url.flatMap(URL.init(string:)) { NSWorkspace.shared.open(url) }
+        }
+    }
+
+    private static func openTerminal() {
+        let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
+        if FileManager.default.fileExists(atPath: terminal.path) {
+            NSWorkspace.shared.open(terminal)
+        } else {
+            NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Utilities/Terminal.app"))
+        }
+    }
+
+    private static func openLocalApplication(_ path: String, fallbackURL: URL) {
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: path) {
+            NSWorkspace.shared.open(url)
+        } else {
+            NSWorkspace.shared.open(fallbackURL)
+        }
+    }
+
+    private static func openURLs(_ values: [String]) {
+        for value in values {
+            if let url = URL(string: value) { NSWorkspace.shared.open(url) }
+        }
+    }
+}
+
+struct InstallationView: View {
+    @Local private var model = InstallationModel()
+
+    private let sections: [InstallationSection] = [
+        InstallationSection(title: "Déjà sur votre Mac, rien à installer", tools: [
+            InstallationTool(id: "fm", name: "fm (dans le Terminal)", about: "parler au même modèle qu'ici en tapant des commandes, et l'enchaîner avec d'autres outils.", needed: "vous aimez le Terminal, ou si vous voulez traiter des fichiers en série (résumer dix textes d'un coup, par exemple).", unnecessary: "vous êtes satisfait de cette fenêtre. FM Mini fait la même chose, en cliquant.", statusKey: "fm", url: nil, tooltip: nil),
+            InstallationTool(id: "shortcuts", name: "Raccourcis → « Utiliser le modèle »", about: "ajouter le modèle à des automatisations sans écrire de code, par exemple un clic droit sur un fichier pour le résumer.", needed: "vous répétez souvent la même tâche sur des fichiers ou des textes.", unnecessary: "vous posez des questions ponctuelles : cette fenêtre suffit.", statusKey: "shortcuts", url: nil, tooltip: nil)
+        ]),
+        InstallationSection(title: "Sans programmer", tools: [
+            InstallationTool(id: "lmstudio", name: "LM Studio", about: "faire tourner d'autres modèles sur votre Mac, plus gros et plus cultivés que celui d'Apple, que fm peut ensuite utiliser.", needed: "le modèle Apple vous répond trop souvent « je ne sais pas », et si votre Mac a au moins 16 Go de mémoire (32 Go pour les modèles vraiment plus forts).", unnecessary: "vous travaillez surtout sur vos propres textes : le modèle Apple est plus rapide et déjà là.", statusKey: "lmstudio", url: "https://lmstudio.ai", tooltip: nil),
+            InstallationTool(id: "ollama", name: "Ollama", about: "la même chose que LM Studio, en plus sobre, piloté depuis le Terminal.", needed: "vous préférez le Terminal aux fenêtres, ou si LM Studio ne vous convient pas.", unnecessary: "vous avez déjà LM Studio : l'un ou l'autre, pas les deux.", statusKey: "ollama", url: "https://ollama.com", tooltip: nil),
+            InstallationTool(id: "homebrew", name: "Homebrew", about: "installer des outils du Terminal en une ligne. C'est un prérequis, pas un outil en soi.", needed: "vous voulez installer apfel, ou tout autre outil « brew install … ».", unnecessary: "vous n'installez rien de la liste ci-dessous.", statusKey: "homebrew", url: "https://brew.sh", tooltip: nil),
+            InstallationTool(id: "apfel", name: "apfel", about: "le modèle Apple comme outil du Terminal avec quelques fonctions que fm n'a pas (connexion à des outils externes MCP, scripts tout prêts).", needed: "vous êtes sur macOS 26 (où fm n'existe pas), ou si vous voulez brancher le modèle sur des outils MCP.", unnecessary: "vous êtes sur macOS 27 et que fm vous suffit.", statusKey: "apfel", url: "https://github.com/Arthur-Ficial/apfel", tooltip: nil)
+        ]),
+        InstallationSection(title: "Avec Python", tools: [
+            InstallationTool(id: "clt", name: "Command Line Tools d'Apple", about: "les outils de base pour compiler et pour Python. Vous les avez déjà si FM Mini a été construit sur ce Mac.", needed: "vous voulez utiliser quoi que ce soit de cette section ou de la suivante.", unnecessary: "vous ne programmez pas.", statusKey: "clt", url: nil, tooltip: "xcode-select --install"),
+            InstallationTool(id: "python-sdk", name: "SDK Python Apple (apple-fm-sdk)", about: "piloter le modèle depuis Python, lui donner des outils (calendrier, fichiers, base de données) et mesurer ses réponses sur des séries de tests.", needed: "vous écrivez des scripts Python, ou si vous voulez vérifier sérieusement ce que le modèle réussit et rate.", unnecessary: "vous ne programmez pas.", statusKey: "python-sdk", url: "https://github.com/apple/python-apple-fm-sdk", tooltip: nil),
+            InstallationTool(id: "apple-docs", name: "Documentation Apple et vidéo de présentation", about: "la référence officielle du framework, et vingt minutes de vidéo qui montrent fm et le SDK Python.", needed: "vous voulez comprendre ce qui se passe sous le capot avant d'aller plus loin.", unnecessary: "vous voulez seulement vous servir de l'app.", statusKey: nil, url: "https://developer.apple.com/documentation/foundationmodels", tooltip: nil)
+        ]),
+        InstallationSection(title: "Pour développer des applications", tools: [
+            InstallationTool(id: "xcode", name: "Xcode", about: "l'atelier complet d'Apple. Indispensable pour certaines fonctions du langage Swift et pour signer une app que vous distribuez.", needed: "vous voulez écrire vos propres apps utilisant le modèle, ou en distribuer. Comptez 15 Go.", unnecessary: "vous utilisez des apps déjà construites, comme celle-ci.", statusKey: "xcode", url: "https://apps.apple.com/app/xcode/id497799835", tooltip: nil),
+            InstallationTool(id: "utilities", name: "Foundation Models utilities (Apple, open source)", about: "des briques officielles pour les développeurs : gérer de longues conversations, définir des « compétences », se connecter à n'importe quel serveur de modèle compatible OpenAI.", needed: "vous développez en Swift avec le modèle.", unnecessary: "vous ne développez pas.", statusKey: nil, url: "https://github.com/apple/foundation-models-utilities", tooltip: nil),
+            InstallationTool(id: "mcp", name: "Ponts MCP", about: "relier le modèle à des outils externes (dans un sens) ou le mettre à disposition d'autres assistants comme outil (dans l'autre).", needed: "vous utilisez déjà des serveurs MCP et savez ce que c'est.", unnecessary: "cette phrase ne vous dit rien — c'est normal, et ça ne vous manquera pas.", statusKey: nil, url: "https://github.com/airy10/AppleFoundationMCPTool", tooltip: nil)
+        ])
+    ]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                ForEach(sections) { section in
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text(section.title).font(.headline)
+                        ForEach(section.tools) { tool in
+                            InstallationToolCard(tool: tool, status: model.status(for: tool)) {
+                                model.open(tool)
+                            }
+                        }
+                    }
+                }
+                Text("Toutes ces vérifications sont faites sur votre Mac ; rien n'est téléchargé ni installé par FM Mini.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 4)
+            }
+            .padding(20)
+        }
+        .background(Color.white)
+    }
+}
+
+struct InstallationToolCard: View {
+    let tool: InstallationTool
+    let status: InstallationAvailability?
+    let open: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 7) {
+                Text(tool.name).font(.subheadline.weight(.bold))
+                if let status {
+                    Circle()
+                        .fill(statusColor(status))
+                        .frame(width: 8, height: 8)
+                    Text(statusText(status))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            Text("À quoi ça sert : (tool.about)")
+                .font(.caption)
+            Label("Vous en avez besoin si… (tool.needed)", systemImage: "circle.fill")
+                .font(.caption)
+                .foregroundStyle(Color.green)
+            Label("Inutile si… (tool.unnecessary)", systemImage: "circle.fill")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button("Ouvrir", action: open)
+                .controlSize(.small)
+                .help(tool.tooltip ?? "")
+        }
+        .padding(12)
+        .background(Color.gray.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.18), lineWidth: 1))
+    }
+
+    private func statusColor(_ status: InstallationAvailability) -> Color {
+        if case .detected = status { return .green }
+        return .gray
+    }
+
+    private func statusText(_ status: InstallationAvailability) -> String {
+        switch status {
+        case .checking: return "vérification…"
+        case .detected(let detail): return detail ?? "détecté"
+        case .unavailable: return "non détecté"
+        }
+    }
+}
+
 struct MultiLineInput: NSViewRepresentable {
     @Binding var text: String
     let focusRevision: Int
@@ -1039,6 +1294,28 @@ struct FMMiniApp: App {
         }
         .defaultSize(width: 460, height: 760)
         .windowResizability(.contentMinSize)
+
+        Window("Compléter l’installation", id: "installation") {
+            InstallationView()
+                .preferredColorScheme(.light)
+        }
+        .defaultSize(width: 520, height: 680)
+        .windowResizability(.contentMinSize)
+        .commands {
+            InstallationCommands()
+        }
+    }
+}
+
+struct InstallationCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(after: .help) {
+            Button("Compléter l’installation…") {
+                openWindow(id: "installation")
+            }
+        }
     }
 }
 

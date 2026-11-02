@@ -1,4 +1,4 @@
-# FM Mini 1.3
+# FM Mini 1.3.1
 
 FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans fichier joint, elle répond normalement. Avec un seul fichier joint, elle répond uniquement à partir de ce document.
 
@@ -18,6 +18,10 @@ Un document joint n’est envoyé qu’avec la première question : le badge « 
 3. Lancez `open "build/FM Mini.app"`.
 
 La fenêtre s’ouvre pour la première fois au centre de l’écran en format vertical (460 × 760), peut être réduite jusqu’à 400 × 560, et mémorise ensuite sa taille et sa position.
+
+## Compléter l’installation
+
+Le menu **Aide → Compléter l’installation…**, ou le lien au bas de l’accueil, ouvre une fenêtre qui présente les outils facultatifs autour du modèle Apple. Les détections sont faites localement ; seul LM Studio est interrogé sur localhost pour savoir si son serveur est actif.
 
 Vous pouvez joindre un fichier `.txt`, `.md`, `.csv`, `.json`, `.log`, `.rtf`, `.docx` ou `.pdf` contenant du texte. Les PDF issus d’un scan sans texte ne peuvent pas être lus. Appuyez sur Entrée pour envoyer ; Maj-Entrée ajoute une ligne. Le temps de réponse est affiché sous chaque réponse du modèle.
 
