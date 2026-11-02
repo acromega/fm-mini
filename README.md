@@ -1,19 +1,29 @@
-# FM Mini 1.3.13
+# FM Mini
 
-FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans PJ, elle répond normalement. Avec une seule PJ, elle répond uniquement à partir de ce document.
+FM Mini est une petite application Mac : une fenêtre blanche, un modèle de langage, une pièce jointe. Elle utilise le modèle qu'Apple livre avec macOS 27 — gratuit, sans compte, et vos textes ne quittent jamais votre ordinateur.
 
-Crédits : acromega + Claude, 2026.
+Elle fait exprès peu de choses : résumer, corriger, traduire, extraire l'essentiel d'un document, en 15 langues. Elle ne connaît pas l'actualité et ne sait presque rien par cœur : on lui donne le texte sur lequel travailler.
+
+Pour qui : toute personne qui a un Mac Apple Silicon sous macOS 27 et veut essayer le modèle d'Apple sans rien installer d'autre que les outils en ligne de commande. Pas besoin de Xcode, pas besoin de savoir programmer.
+
+Pour la modifier : ouvrez Personnalisation.swift dans TextEdit, ou demandez à votre assistant de programmation (Claude Code, Codex…) — la fenêtre « Aller plus loin » de l'app contient des demandes prêtes à coller, et POUR-LES-ASSISTANTS.md lui explique les règles du dépôt.
+
+Crédits : acromega + Claude, 2026. Licence MIT. Les audits sont dans audits/.
+
+![Fenêtre d'accueil de FM Mini](docs/accueil.png)
 
 Une PJ n’est envoyée qu’avec la première question : le badge « PJ : <nom> (N jetons) » confirme ensuite qu’elle reste dans la conversation. La jauge sous l’en-tête indique l’occupation du contexte ; FM Mini compresse automatiquement les anciens échanges lorsqu’elle approche de la limite, sans retirer les bulles visibles. Les bulles peuvent être copiées par survol ou clic droit.
 
 ## Prérequis
 
+- Apple Intelligence activée (Réglages Système → Apple Intelligence et Siri). La première activation télécharge le modèle : comptez quelques minutes, une seule fois. Ensuite, FM Mini fonctionne sans connexion.
 - macOS 27 ou ultérieur ;
 - un Mac Apple Silicon ;
-- Apple Intelligence activée dans Réglages Système, avec le modèle entièrement téléchargé ;
 - les Command Line Tools Apple (installez-les avec `xcode-select --install` si nécessaire). Xcode n’est pas requis.
 
 ## Installation et démarrage
+
+Sans compte GitHub : bouton Code → Download ZIP, puis décompressez dans votre dossier personnel sous le nom fm-mini.
 
 1. Copiez le dossier `fm-mini` dans votre dossier personnel, pour obtenir `~/fm-mini`.
 2. Dans Terminal, lancez `cd ~/fm-mini`, puis `./make-app.sh`.
