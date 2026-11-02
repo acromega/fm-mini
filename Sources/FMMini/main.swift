@@ -1277,7 +1277,14 @@ struct MultiLineInput: NSViewRepresentable {
 final class SendTextView: NSTextView {
     var onSend: (() -> Void)?
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 36 && !event.modifierFlags.contains(.shift) {
+        if event.keyCode == 48 {
+            if event.modifierFlags.contains(.shift) {
+                window?.selectPreviousKeyView(nil)
+            } else {
+                window?.selectNextKeyView(nil)
+            }
+        } else if (event.keyCode == 36 || event.keyCode == 76)
+                    && event.modifierFlags.intersection([.shift, .command, .option, .control]).isEmpty {
             onSend?()
         } else {
             super.keyDown(with: event)
