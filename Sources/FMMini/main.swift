@@ -1529,7 +1529,12 @@ final class AutoTestReporter {
 enum AutoTest {
     static func run() async -> Int {
         let reporter = AutoTestReporter()
-        reporter.emit("FM Mini autotest — début")
+        let arguments = CommandLine.arguments
+        let selectedLanguage = arguments.firstIndex(of: "--langue").flatMap { index -> Langue? in
+            arguments.indices.contains(index + 1) ? Langue(rawValue: arguments[index + 1].lowercased()) : nil
+        }
+        let languagesToCheck = selectedLanguage.map { [$0] } ?? Langue.allCases
+        reporter.emit("FM Mini autotest — début (langues : \(languagesToCheck.map(\.rawValue).joined(separator: " ")))")
         reporter.emit("AUTOTEST découpage unitaire : \(DocumentSplitter.structuredSplitUnitTest() && DocumentSplitter.longSentenceUnitTest() ? "OK" : "ÉCHEC")")
         let suggestionPasses = await MainActor.run { () -> Bool in
             let initialInput = "Texte inchangé"
@@ -1565,6 +1570,9 @@ enum AutoTest {
             return 1
         }
         do {
+            let languagesPass = try await languageChecks(languagesToCheck, reporter: reporter)
+            let switchPasses = try await languageSwitchTest(reporter: reporter)
+
             let normalSession = LanguageModelSession(instructions: ChatModel.instructions(for: .fr))
             let normalStart = Date()
             let normal = try await normalSession.respond(to: "dis-moi ce que tu sais faire")
@@ -1614,7 +1622,7 @@ enum AutoTest {
             let splitPasses = fixturePasses && parts.count == 6 && partTwoOnly && selectedPartName.contains("partie 3/")
             reporter.emit("AUTOTEST 12 découpage: \(splitPasses ? "OK" : "ÉCHEC") — fixture 20 000 mots : \(fixtureParts.count) parties ; \(parts.count) puces, partie 2 : \(partTwoAnswer.content) (\(Int(Date().timeIntervalSince(partTwoStart) * 1_000)) ms), badge \(selectedPartName)")
 
-            return 0
+            return languagesPass && switchPasses ? 0 : 1
         } catch {
             if isModelContextError(error) {
                 reporter.emit("Modèle inaccessible depuis ce contexte : lancez l’autotest depuis Terminal.app")
@@ -1623,6 +1631,94 @@ enum AutoTest {
             reporter.emit("AUTOTEST: ÉCHEC — \(error.localizedDescription)")
             return 1
         }
+    }
+
+    // Mots courants attendus dans une réponse de la langue (après suppression des accents) ; un préfixe suffit pour les plus longs.
+    private static let languageMarkers: [Langue: [String]] = [
+        .fr: ["bonjour", "salut", "vous", "aider", "les", "est", "et"],
+        .en: ["hello", "hi", "help", "you", "the", "and", "is", "are"],
+        .es: ["hola", "puedo", "ayudar", "usted", "los", "las", "es", "y"],
+        .de: ["hallo", "ich", "sie", "ihnen", "helfen", "und", "ist", "die", "der"],
+        .it: ["ciao", "buongiorno", "posso", "aiutar", "lei", "sono", "gli", "e"],
+        .pt: ["ola", "posso", "ajudar", "voce", "os", "as", "e", "sou"]
+    ]
+
+    private static func matchesLanguage(_ text: String, _ langue: Langue) -> Bool {
+        let folded = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased()
+        let words = Set(folded.split(whereSeparator: { !$0.isLetter }).map(String.init))
+        return (languageMarkers[langue] ?? []).contains { marker in
+            words.contains(marker) || (marker.count >= 5 && words.contains { $0.hasPrefix(marker) })
+        }
+    }
+
+    private static func oneLine(_ text: String) -> String {
+        text.replacingOccurrences(of: "\n", with: " ")
+    }
+
+    private static func languageChecks(_ langues: [Langue], reporter: AutoTestReporter) async throws -> Bool {
+        var allPass = true
+        for langue in langues {
+            let title = langue.texte(.titreAccueil)
+            let paragraph = langue.texte(.paragrapheAccueil)
+            let welcomePasses = !title.trimmingCharacters(in: .whitespaces).isEmpty && !paragraph.trimmingCharacters(in: .whitespaces).isEmpty
+            let missingKeys = Cle.allCases.filter { Textes.tous[langue]?[$0] == nil }
+            let countPasses = paragraph.components(separatedBy: "COUNT").count == 2
+            let session = LanguageModelSession(instructions: ChatModel.instructions(for: langue))
+            let started = Date()
+            let answer = try await session.respond(to: "hello", options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 60)).content
+            let ms = Int(Date().timeIntervalSince(started) * 1_000)
+            let helloPasses = matchesLanguage(answer, langue)
+            let passes = welcomePasses && missingKeys.isEmpty && countPasses && helloPasses
+            allPass = allPass && passes
+            reporter.emit("AUTOTEST langue \(langue.rawValue): \(passes ? "OK" : "ÉCHEC") — accueil \(welcomePasses ? "non vide" : "VIDE"), clés manquantes \(missingKeys.count), COUNT \(countPasses ? "présent une fois" : "ABSENT"), « hello » → \(oneLine(answer)) (\(ms) ms)")
+        }
+        return allPass
+    }
+
+    /// Conversation commencée en français, bascule en anglais : la session rebâtie (document, deux échanges, amorce)
+    /// répond en anglais et se souvient de la première question.
+    private static func languageSwitchTest(reporter: AutoTestReporter) async throws -> Bool {
+        let document = documentWithWordCount(300)
+        let documentName = "document-300-mots.txt"
+        let firstQuestion = "Première question : quel est le sujet principal ?"
+        let frenchSession = LanguageModelSession(instructions: ChatModel.instructions(for: .fr))
+        var turns: [ConversationTurn] = []
+        for (index, question) in [firstQuestion, "Quelle pratique réduit les déchets ?"].enumerated() {
+            let prompt = index == 0 ? attachedPrompt(name: documentName, content: document, question: question) : question
+            let answer = try await frenchSession.respond(to: prompt, options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 40)).content
+            turns.append(ConversationTurn(question: question, answer: answer))
+        }
+        let english = switchedSession(langue: .en, documentName: documentName, document: document, recentTurns: turns)
+        let started = Date()
+        let englishAnswer = try await english.respond(to: "Who takes part in the garden?", options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 40)).content
+        let recall = try await english.respond(to: "What was my first question?", options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 40)).content
+        let ms = Int(Date().timeIntervalSince(started) * 1_000)
+        let englishPasses = matchesLanguage(englishAnswer, .en)
+        let recallPasses = ["sujet", "principal", "première", "main", "topic", "first"].contains { recall.localizedCaseInsensitiveContains($0) }
+        let passes = englishPasses && recallPasses
+        reporter.emit("AUTOTEST bascule fr → en: \(passes ? "OK" : "ÉCHEC") — réponse : \(oneLine(englishAnswer)) ; première question : \(oneLine(recall)) (\(ms) ms)")
+        return passes
+    }
+
+    private static func switchedSession(langue: Langue, documentName: String, document: String, recentTurns: [ConversationTurn]) -> LanguageModelSession {
+        var entries: [Transcript.Entry] = [
+            .instructions(Transcript.Instructions(segments: [.text(Transcript.TextSegment(content: ChatModel.instructions(for: langue)))], toolDefinitions: []))
+        ]
+        entries += [
+            .prompt(Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: langue.texte(.promptDocument, documentName, document, "")))])),
+            .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: langue.texte(.documentCharge)))]))
+        ]
+        for turn in recentTurns {
+            entries += [
+                .prompt(Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: turn.question))])),
+                .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: turn.answer))]))
+            ]
+        }
+        entries += [
+            .prompt(Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: langue.texte(.amorceLangueQuestion)))])),
+            .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: langue.texte(.amorceLangueReponse)))]))
+        ]
+        return LanguageModelSession(transcript: Transcript(entries: entries))
     }
 
     private static func auditFixtures(reporter: AutoTestReporter) -> Bool {
