@@ -230,6 +230,7 @@ final class ChatModel: ObservableObject {
     private var turns: [ConversationTurn] = []
     private var isCompressing = false
     private var oversizedDocumentName: String?
+    private var previousSummary: String?
 
     init() {
         switch model.availability {
@@ -253,6 +254,7 @@ final class ChatModel: ObservableObject {
         isSending = false
         contextTokenCount = 0
         turns = []
+        previousSummary = nil
         Task { @MainActor [weak self] in await self?.refreshContextGauge() }
     }
 
@@ -267,6 +269,7 @@ final class ChatModel: ObservableObject {
         isSending = false
         contextTokenCount = 0
         turns = []
+        previousSummary = nil
         Task { @MainActor [weak self] in await self?.refreshContextGauge() }
     }
 
@@ -310,6 +313,7 @@ final class ChatModel: ObservableObject {
                     if self.attachment?.isLoaded == true {
                         self.session = self.newSession()
                         self.turns = []
+                        self.previousSummary = nil
                         self.messages = []
                         self.contextTokenCount = 0
                     }
@@ -390,7 +394,7 @@ final class ChatModel: ObservableObject {
                 let messageTokens = try await self.model.tokenCount(for: sentText)
                 let totalTokens = transcriptTokens + messageTokens
                 guard totalTokens <= Int(Double(contextSize) * 0.9) else {
-                    self.messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(totalTokens) / \(contextSize) jetons). Les réponses ralentissent et le modèle va refuser.", durationMilliseconds: nil, action: .conversationFull))
+                    self.messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(totalTokens) / \(contextSize) jetons).", durationMilliseconds: nil, action: .conversationFull))
                     return
                 }
 
@@ -500,31 +504,51 @@ final class ChatModel: ObservableObject {
     }
 
     private func compressConversationIfNeeded() async {
-        guard contextRatio > 0.85, turns.count > 2, !isCompressing, let session else { return }
+        guard contextRatio > 0.85, turns.count > 2, !isCompressing, session != nil else { return }
         isCompressing = true
         defer { isCompressing = false }
         let before = contextTokenCount
-        let request = "Résume en moins de 200 mots les questions posées et les réponses données, en gardant les faits, chiffres et noms exacts. Ne résume pas le document lui-même. Ne résume pas les deux derniers échanges."
+        let request = "Résume en moins de 200 mots les questions posées et les réponses données, en gardant les faits, chiffres et noms exacts. Ne résume pas le document lui-même."
         do {
-            let summary = try await session.respond(
+            let recentTurns = Array(turns.suffix(2))
+            let summarySession = compressionSourceSession(turns: Array(turns.dropLast(2)))
+            let summary = try await summarySession.respond(
                 to: request,
                 options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 300)
             ).content
-            let recentTurns = Array(turns.suffix(2))
             let compressed = compressedSession(document: attachment?.isLoaded == true ? attachment : nil, summary: summary, recentTurns: recentTurns)
             let compressedTokens = try await model.tokenCount(for: compressed.transcript)
             if compressedTokens > Int(Double(contextSize) * 0.85) {
-                messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(before) / \(contextSize) jetons). Les réponses ralentissent et le modèle va refuser.", durationMilliseconds: nil, action: .conversationFull))
+                messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(before) / \(contextSize) jetons).", durationMilliseconds: nil, action: .conversationFull))
                 return
             }
             self.session = compressed
             turns = recentTurns
+            previousSummary = summary
             contextTokenCount = compressedTokens
             let documentSuffix = attachment?.isLoaded == true ? " (le document est conservé en entier)." : "."
             messages.append(ChatItem(role: .system, text: "Conversation compressée : \(before) → \(compressedTokens) jetons\(documentSuffix)", durationMilliseconds: nil))
         } catch {
             messages.append(ChatItem(role: .error, text: errorText(error), durationMilliseconds: nil))
         }
+    }
+
+    private func compressionSourceSession(turns: [ConversationTurn]) -> LanguageModelSession {
+        let instructionEntry = Transcript.Instructions(
+            segments: [.text(Transcript.TextSegment(content: Self.instructions))], toolDefinitions: []
+        )
+        var entries: [Transcript.Entry] = [.instructions(instructionEntry)]
+        if let previousSummary {
+            let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: "Résumé des échanges précédents :"))])
+            let response = Transcript.Response(segments: [.text(Transcript.TextSegment(content: previousSummary))])
+            entries += [.prompt(prompt), .response(response)]
+        }
+        for turn in turns {
+            let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: turn.question))])
+            let response = Transcript.Response(segments: [.text(Transcript.TextSegment(content: turn.answer))])
+            entries += [.prompt(prompt), .response(response)]
+        }
+        return LanguageModelSession(transcript: Transcript(entries: entries))
     }
 
     private func compressedSession(document: TextAttachment?, summary: String, recentTurns: [ConversationTurn]) -> LanguageModelSession {
