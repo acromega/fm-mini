@@ -46,7 +46,7 @@ swift build -c release
 
 APP="$ROOT/build/FM Mini.app"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/fr.lproj"
 cp "$ROOT/.build/release/FMMini" "$APP/Contents/MacOS/FMMini"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -55,6 +55,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>FMMini</string>
   <key>CFBundleIdentifier</key><string>org.local.fmmini</string>
   <key>CFBundleName</key><string>FM Mini</string>
+  <key>CFBundleDevelopmentRegion</key><string>fr</string>
   <key>CFBundleShortVersionString</key><string>1.3.5</string>
   <key>CFBundleVersion</key><string>1.3.5</string>
   <key>LSMinimumSystemVersion</key><string>27.0</string>
