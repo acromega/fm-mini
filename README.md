@@ -1,5 +1,7 @@
 # FM Mini
 
+*English summary — the rest of this README is in French.* FM Mini is a tiny macOS app: one white window, Apple's on-device language model (macOS 27, Apple Silicon), one attached document. Free, no account, nothing leaves your Mac. It summarizes, proofreads, rewrites, translates (15 languages) and extracts facts from the text you give it; it knows nothing about current events and very little by heart. Build without Xcode: `git clone https://github.com/acromega/fm-mini.git ~/fm-mini && cd ~/fm-mini && ./make-app.sh`. Customize by editing `Sources/FMMini/Personnalisation.swift`, or hand the repo to your coding agent (see POUR-LES-ASSISTANTS.md). Audited twice before release (see audits/). MIT.
+
 FM Mini est une petite application Mac : une fenêtre blanche, un modèle de langage, une pièce jointe (PJ). Elle utilise le modèle qu'Apple livre avec macOS 27 — gratuit, sans compte, et vos textes ne quittent jamais votre ordinateur.
 
 Elle fait exprès peu de choses : résumer, corriger, traduire, extraire l'essentiel d'un document, en 15 langues. Elle ne connaît pas l'actualité et ne sait presque rien par cœur : on lui donne le texte sur lequel travailler.
