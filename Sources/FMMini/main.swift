@@ -298,6 +298,8 @@ enum AttachmentReader {
 final class ChatModel: ObservableObject {
     nonisolated static func instructions(for langue: Langue) -> String { langue.texte(.consigneModele) }
     var instructions: String { t(.consigneModele) }
+    private var cancellables: Set<AnyCancellable> = []
+    private var pendingLanguageChange = false
 
     @Published var messages: [ChatItem] = []
     @Published var input = ""
@@ -328,6 +330,35 @@ final class ChatModel: ObservableObject {
             unavailableReason = t(.raisonInconnue)
         }
         Task { @MainActor [weak self] in await self?.refreshContextGauge() }
+        Langues.shared.$courante.dropFirst().removeDuplicates().sink { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.languageChanged() }
+        }.store(in: &cancellables)
+    }
+
+    /// Changement de langue : la session est recréée avec la nouvelle consigne ; le document et les deux
+    /// derniers échanges sont réinjectés comme lors d'une compression ; les bulles restent affichées.
+    private func languageChanged() async {
+        guard unavailableReason == nil else { return }
+        guard !isSending else { pendingLanguageChange = true; return }
+        await rebuildSessionForCurrentLanguage()
+    }
+
+    private func rebuildSessionForCurrentLanguage() async {
+        let recentTurns = Array(turns.suffix(2))
+        var summary = previousSummary
+        if turns.count > 2, let merged = try? await summarize(turns: Array(turns.dropLast(2))) { summary = merged }
+        let loadedDocument = attachment?.isLoaded == true ? attachment : nil
+        if loadedDocument == nil && recentTurns.isEmpty && summary == nil {
+            session = newSession()
+        } else {
+            session = compressedSession(document: loadedDocument, summary: summary, recentTurns: recentTurns)
+        }
+        turns = recentTurns
+        previousSummary = summary
+        if !messages.isEmpty {
+            messages.append(ChatItem(role: .system, text: t(.langueChangee), durationMilliseconds: nil))
+        }
+        await refreshContextGauge()
     }
 
     func newConversation() {
@@ -566,6 +597,10 @@ final class ChatModel: ObservableObject {
                 self.turns.append(ConversationTurn(question: question, answer: self.messageText(id: responseID)))
                 await self.refreshContextGauge()
                 await self.compressConversationIfNeeded()
+                if self.pendingLanguageChange {
+                    self.pendingLanguageChange = false
+                    await self.rebuildSessionForCurrentLanguage()
+                }
             } catch is CancellationError {
                 return
             } catch {
@@ -1294,6 +1329,7 @@ struct FMMiniApp: App {
         .windowResizability(.contentMinSize)
         .commands {
             ConversationCommands(model: model)
+            LanguageCommands()
             InstallationCommands()
             AboutCommands()
         }
@@ -1340,6 +1376,20 @@ struct ConversationCommands: Commands {
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
             .disabled(model.latestModelResponse == nil)
+        }
+    }
+}
+
+struct LanguageCommands: Commands {
+    @ObservedObject private var langues = Langues.shared
+
+    var body: some Commands {
+        CommandGroup(before: .toolbar) {
+            Picker(t(.menuLangue), selection: Binding(get: { langues.courante }, set: { langues.choisir($0) })) {
+                ForEach(Langue.allCases) { langue in
+                    Text(langue.nomNatif).tag(langue)
+                }
+            }
         }
     }
 }

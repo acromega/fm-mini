@@ -810,6 +810,15 @@ final class Langues: ObservableObject {
         }
     }
 
+    func choisir(_ langue: Langue) {
+        guard langue != courante else { return }
+        courante = langue
+        UserDefaults.standard.set(langue.rawValue, forKey: Self.cleDefaults)
+        // Les menus standard d'AppKit (Fenêtre, Outils d'écriture…) suivront aussi au prochain lancement.
+        UserDefaults.standard.set([langue.rawValue], forKey: "AppleLanguages")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { MenuLocalizer.apply(langue) }
+    }
+
     func texte(_ cle: Cle) -> String { courante.texte(cle) }
     func texte(_ cle: Cle, _ arguments: CVarArg...) -> String {
         String(format: courante.texte(cle), locale: courante.locale, arguments: arguments)
