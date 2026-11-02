@@ -351,7 +351,8 @@ final class ChatModel: ObservableObject {
         if loadedDocument == nil && recentTurns.isEmpty && summary == nil {
             session = newSession()
         } else {
-            session = compressedSession(document: loadedDocument, summary: summary, recentTurns: recentTurns)
+            // Une courte paire question/réponse dans la nouvelle langue : sans elle, le modèle continue dans la langue des échanges précédents.
+            session = compressedSession(document: loadedDocument, summary: summary, recentTurns: recentTurns, languagePrimer: true)
         }
         turns = recentTurns
         previousSummary = summary
@@ -783,7 +784,7 @@ final class ChatModel: ObservableObject {
         return LanguageModelSession(transcript: Transcript(entries: entries))
     }
 
-    private func compressedSession(document: TextAttachment?, summary: String?, recentTurns: [ConversationTurn]) -> LanguageModelSession {
+    private func compressedSession(document: TextAttachment?, summary: String?, recentTurns: [ConversationTurn], languagePrimer: Bool = false) -> LanguageModelSession {
         let instructionEntry = Transcript.Instructions(
             segments: [.text(Transcript.TextSegment(content: instructions))], toolDefinitions: []
         )
@@ -800,6 +801,12 @@ final class ChatModel: ObservableObject {
             let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: turn.question))])
             let response = Transcript.Response(segments: [.text(Transcript.TextSegment(content: turn.answer))])
             entries += [.prompt(prompt), .response(response)]
+        }
+        if languagePrimer {
+            entries += [
+                .prompt(Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: t(.amorceLangueQuestion)))])),
+                .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: t(.amorceLangueReponse)))]))
+            ]
         }
         return LanguageModelSession(transcript: Transcript(entries: entries))
     }

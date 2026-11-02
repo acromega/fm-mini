@@ -80,6 +80,7 @@ enum Cle: String, CaseIterable {
     case conversationCompressee, documentConserve, langueChangee
     // Consigne et textes envoyés au modèle
     case consigneModele, promptDocument, promptCompression, resumeEchangesPrecedents, documentCharge
+    case amorceLangueQuestion, amorceLangueReponse
     // Menus
     case menuFichier, menuEdition, menuPresentation, menuFenetre, menuAide, menuLangue
     case fermer, quitter, masquer, masquerLesAutres, toutAfficher
@@ -168,6 +169,8 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .promptCompression: "Résume en moins de 200 mots les questions posées et les réponses données, en gardant les faits, chiffres et noms exacts. Ne résume pas le document lui-même.",
         .resumeEchangesPrecedents: "Résumé des échanges précédents :",
         .documentCharge: "Document chargé.",
+        .amorceLangueQuestion: "Désormais, réponds en français.",
+        .amorceLangueReponse: "Entendu : je répondrai désormais en français.",
         .menuFichier: "Fichier",
         .menuEdition: "Édition",
         .menuPresentation: "Présentation",
@@ -280,6 +283,8 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .promptCompression: "Summarize in under 200 words the questions asked and the answers given, keeping the exact facts, figures and names. Do not summarize the document itself.",
         .resumeEchangesPrecedents: "Summary of the previous exchanges:",
         .documentCharge: "Document loaded.",
+        .amorceLangueQuestion: "From now on, answer in English.",
+        .amorceLangueReponse: "Understood: from now on I will answer in English.",
         .menuFichier: "File",
         .menuEdition: "Edit",
         .menuPresentation: "View",
@@ -392,6 +397,8 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .promptCompression: "Resume en menos de 200 palabras las preguntas planteadas y las respuestas dadas, conservando los hechos, cifras y nombres exactos. No resumas el documento en sí.",
         .resumeEchangesPrecedents: "Resumen de los intercambios anteriores:",
         .documentCharge: "Documento cargado.",
+        .amorceLangueQuestion: "A partir de ahora, responde en español.",
+        .amorceLangueReponse: "Entendido: a partir de ahora responderé en español.",
         .menuFichier: "Archivo",
         .menuEdition: "Edición",
         .menuPresentation: "Visualización",
@@ -504,6 +511,8 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .promptCompression: "Fasse in weniger als 200 Wörtern die gestellten Fragen und die gegebenen Antworten zusammen und behalte die genauen Fakten, Zahlen und Namen bei. Fasse nicht das Dokument selbst zusammen.",
         .resumeEchangesPrecedents: "Zusammenfassung der bisherigen Unterhaltung:",
         .documentCharge: "Dokument geladen.",
+        .amorceLangueQuestion: "Antworte ab jetzt auf Deutsch.",
+        .amorceLangueReponse: "Verstanden: Ab jetzt antworte ich auf Deutsch.",
         .menuFichier: "Ablage",
         .menuEdition: "Bearbeiten",
         .menuPresentation: "Darstellung",
@@ -616,6 +625,8 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .promptCompression: "Riassumi in meno di 200 parole le domande poste e le risposte date, mantenendo esatti fatti, cifre e nomi. Non riassumere il documento stesso.",
         .resumeEchangesPrecedents: "Riepilogo degli scambi precedenti:",
         .documentCharge: "Documento caricato.",
+        .amorceLangueQuestion: "D'ora in poi, rispondi in italiano.",
+        .amorceLangueReponse: "Capito: d'ora in poi risponderò in italiano.",
         .menuFichier: "File",
         .menuEdition: "Modifica",
         .menuPresentation: "Vista",
@@ -728,6 +739,8 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .promptCompression: "Resuma em menos de 200 palavras as perguntas feitas e as respostas dadas, mantendo os fatos, números e nomes exatos. Não resuma o documento em si.",
         .resumeEchangesPrecedents: "Resumo das trocas anteriores:",
         .documentCharge: "Documento carregado.",
+        .amorceLangueQuestion: "A partir de agora, responda em português.",
+        .amorceLangueReponse: "Entendido: a partir de agora responderei em português.",
         .menuFichier: "Arquivo",
         .menuEdition: "Editar",
         .menuPresentation: "Visualizar",
