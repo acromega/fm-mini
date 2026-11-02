@@ -1330,7 +1330,7 @@ struct FMMiniApp: App {
     @Local private var model = ChatModel()
 
     var body: some Scene {
-        WindowGroup("FM Mini") {
+        Window("FM Mini", id: "main") {
             ContentView(model: model)
                 .frame(minWidth: 400, minHeight: 560)
                 .preferredColorScheme(.light)
