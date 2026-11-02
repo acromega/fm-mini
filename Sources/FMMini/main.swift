@@ -9,6 +9,19 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 private let accessibleSecondary = Color(white: 0.42)
+private let frenchNumberLocale = Locale(identifier: "fr_FR")
+
+private func formattedNumber(_ value: Int) -> String {
+    value.formatted(.number.locale(frenchNumberLocale))
+}
+
+private func tokenLabel(_ value: Int) -> String {
+    "\(formattedNumber(value)) \(value == 1 ? "jeton" : "jetons")"
+}
+
+private func contextTokenLabel(_ value: Int, outOf maximum: Int) -> String {
+    "\(formattedNumber(value)) / \(formattedNumber(maximum)) \(value == 1 ? "jeton" : "jetons")"
+}
 
 @propertyWrapper
 struct Local<Value>: DynamicProperty {
@@ -469,7 +482,7 @@ final class ChatModel: ObservableObject {
                 let messageTokens = try await self.model.tokenCount(for: sentText)
                 let totalTokens = transcriptTokens + messageTokens
                 guard totalTokens <= Int(Double(contextSize) * 0.9) else {
-                    self.messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(totalTokens) / \(contextSize) jetons).", durationMilliseconds: nil, action: .conversationFull))
+                    self.messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(contextTokenLabel(totalTokens, outOf: contextSize))).", durationMilliseconds: nil, action: .conversationFull))
                     self.input = question
                     self.isSending = false
                     return
@@ -520,7 +533,7 @@ final class ChatModel: ObservableObject {
         if let modelError = error as? LanguageModelError {
             switch modelError {
             case .guardrailViolation:
-                return "Les garde-fous d'Apple ont bloqué cette réponse."
+                return "Les garde-fous d’Apple ont bloqué cette réponse."
             case .contextSizeExceeded:
                 return "La conversation est trop longue pour le modèle : cliquez sur Nouvelle conversation."
             case .unsupportedLanguageOrLocale:
@@ -543,7 +556,7 @@ final class ChatModel: ObservableObject {
         case .emptyFile:
             return "Ce fichier est vide."
         case .scannedPDF:
-            return "Ce PDF ne contient pas de texte lisible (scan) : il faudrait d'abord le passer par la reconnaissance de texte."
+            return "Ce PDF ne contient pas de texte lisible (scan) : il faudrait d’abord le passer par la reconnaissance de texte."
         case .unreadableText:
             return "Le fichier doit être du texte UTF-8 lisible."
         case .damagedDocument:
@@ -565,10 +578,9 @@ final class ChatModel: ObservableObject {
         let wordCount = DocumentSplitter.wordCount(attachment.content)
         let capacity = documentPartCapacity
         let parts = DocumentSplitter.split(attachment.content, maximumWords: capacity)
-        let words = wordCount.formatted(.number.locale(Locale(identifier: "fr_FR")))
-        let tokens = attachment.tokenCount.formatted(.number.locale(Locale(identifier: "fr_FR")))
-        let visibleCapacity = capacity.formatted(.number.locale(Locale(identifier: "fr_FR")))
-        let text = "Ce document fait \(words) mots (\(tokens) jetons). Je ne peux lire qu’environ \(visibleCapacity) mots à la fois — c’est la limite de mémoire du modèle, pas un bogue. Je l’ai découpé en \(parts.count) parties ; choisissez celle à charger, ou posez votre question partie par partie."
+        let words = formattedNumber(wordCount)
+        let visibleCapacity = formattedNumber(capacity)
+        let text = "Ce document fait \(words) mots (\(tokenLabel(attachment.tokenCount)). Je ne peux lire qu’environ \(visibleCapacity) mots à la fois — c’est la limite de mémoire du modèle, pas un bogue. Je l’ai découpé en \(parts.count) parties ; choisissez celle à charger, ou posez votre question partie par partie."
         messages.removeAll { item in
             if case .some(.oversizedDocument) = item.action { return true }
             return false
@@ -623,7 +635,7 @@ final class ChatModel: ObservableObject {
             contextTokenCount = compressedTokens
             compressionFailed = false
             let documentSuffix = attachment?.isLoaded == true ? " (le document est conservé en entier)." : "."
-            messages.append(ChatItem(role: .system, text: "Conversation compressée : \(before) → \(compressedTokens) jetons\(documentSuffix)", durationMilliseconds: nil))
+            messages.append(ChatItem(role: .system, text: "Conversation compressée : \(formattedNumber(before)) → \(tokenLabel(compressedTokens))\(documentSuffix)", durationMilliseconds: nil))
         } catch {
             compressionFailed = true
             messages.append(ChatItem(role: .error, text: errorText(error), durationMilliseconds: nil))
@@ -635,7 +647,7 @@ final class ChatModel: ObservableObject {
             if case .some(.conversationFull) = item.action { return true }
             return false
         }) else { return }
-        messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(tokens) / \(contextSize) jetons).", durationMilliseconds: nil, action: .conversationFull))
+        messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(contextTokenLabel(tokens, outOf: contextSize))).", durationMilliseconds: nil, action: .conversationFull))
     }
 
     private func compressionSourceSession(turns: [ConversationTurn]) -> LanguageModelSession {
@@ -754,7 +766,7 @@ struct ContentView: View {
                 if !attachment.isLoaded {
                     HStack(spacing: 8) {
                         Text(attachment.name).lineLimit(2)
-                        Text("\(attachment.tokenCount) jetons").foregroundStyle(accessibleSecondary)
+                        Text(tokenLabel(attachment.tokenCount)).foregroundStyle(accessibleSecondary)
                         Button("×") { model.attachment = nil }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Retirer le fichier")
@@ -764,7 +776,7 @@ struct ContentView: View {
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(Color.gray.opacity(0.12), in: Capsule())
                 } else {
-                    Text("document chargé : \(attachment.name) (\(attachment.tokenCount) jetons)")
+                    Text("document chargé : \(attachment.name) (\(tokenLabel(attachment.tokenCount)))")
                         .lineLimit(2)
                         .font(.caption)
                         .foregroundStyle(accessibleSecondary)
@@ -798,7 +810,7 @@ struct ContextGauge: View {
     var body: some View {
         VStack(spacing: 4) {
             HStack {
-                Text("\(model.contextTokenCount) / \(model.contextSize) jetons")
+                Text(contextTokenLabel(model.contextTokenCount, outOf: model.contextSize))
                     .font(.caption2)
                     .foregroundStyle(accessibleSecondary)
                 Spacer()
@@ -1161,7 +1173,7 @@ struct InstallationView: View {
                         }
                     }
                 }
-                Text("Toutes ces vérifications sont faites sur votre Mac ; rien n'est téléchargé ni installé par FM Mini.")
+                Text("Toutes ces vérifications sont faites sur votre Mac ; rien n’est téléchargé ni installé par FM Mini.")
                     .font(.caption)
                     .foregroundStyle(accessibleSecondary)
                     .multilineTextAlignment(.center)
@@ -1499,7 +1511,7 @@ enum AutoTest {
             return 0
         } catch {
             if isModelContextError(error) {
-                reporter.emit("Modèle inaccessible depuis ce contexte : lancez l'autotest depuis Terminal.app")
+                reporter.emit("Modèle inaccessible depuis ce contexte : lancez l’autotest depuis Terminal.app")
                 return 2
             }
             reporter.emit("AUTOTEST: ÉCHEC — \(error.localizedDescription)")
