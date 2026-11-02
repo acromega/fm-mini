@@ -1157,12 +1157,12 @@ struct InstallationToolCard: View {
                 }
                 Spacer()
             }
-            Text("À quoi ça sert : (tool.about)")
+            Text("À quoi ça sert : \(tool.about)")
                 .font(.caption)
-            Label("Vous en avez besoin si… (tool.needed)", systemImage: "circle.fill")
+            Label("Vous en avez besoin si… \(tool.needed)", systemImage: "circle.fill")
                 .font(.caption)
                 .foregroundStyle(Color.green)
-            Label("Inutile si… (tool.unnecessary)", systemImage: "circle.fill")
+            Label("Inutile si… \(tool.unnecessary)", systemImage: "circle.fill")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button("Ouvrir", action: open)
