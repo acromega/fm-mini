@@ -1,6 +1,6 @@
 # FM Mini
 
-*English summary — the rest of this README is in French.* FM Mini is a tiny macOS app: one white window, Apple's on-device language model (macOS 27, Apple Silicon), one attached document. Free, no account, nothing leaves your Mac. It summarizes, proofreads, rewrites, translates (15 languages) and extracts facts from the text you give it; it knows nothing about current events and very little by heart. Build without Xcode: `git clone https://github.com/acromega/fm-mini.git ~/fm-mini && cd ~/fm-mini && ./make-app.sh`. Customize by editing `Sources/FMMini/Personnalisation.swift`, or hand the repo to your coding agent (see POUR-LES-ASSISTANTS.md). Audited twice before release (see audits/). MIT.
+*English summary — the rest of this README is in French.* FM Mini is a tiny macOS app: one white window, Apple's on-device language model (macOS 27, Apple Silicon), one attached document. Free, no account, nothing leaves your Mac. It summarizes, proofreads, rewrites, translates (15 languages) and extracts facts from the text you give it; it knows nothing about current events and very little by heart. Interface in English, French, Spanish, German, Italian, Portuguese — follows your Mac's language, switchable in View → Language. Build without Xcode: `git clone https://github.com/acromega/fm-mini.git ~/fm-mini && cd ~/fm-mini && ./make-app.sh`. Customize by editing `Sources/FMMini/Personnalisation.swift`, or hand the repo to your coding agent (see POUR-LES-ASSISTANTS.md). Audited twice before release (see audits/). MIT.
 
 ![Démo : résumé d'une pièce jointe de 300 mots en quelques secondes](docs/demo.gif)
 
@@ -8,9 +8,11 @@ FM Mini est une petite application Mac : une fenêtre blanche, un modèle de lan
 
 Elle fait exprès peu de choses : résumer, corriger, traduire, extraire l'essentiel d'un document, en 15 langues. Elle ne connaît pas l'actualité et ne sait presque rien par cœur : on lui donne le texte sur lequel travailler.
 
+Interface en français, anglais, espagnol, allemand, italien et portugais : elle suit la langue du Mac et se change dans Présentation → Langue.
+
 Pour qui : toute personne qui a un Mac Apple Silicon sous macOS 27 et veut essayer le modèle d'Apple sans rien installer d'autre que les outils en ligne de commande. Pas besoin de Xcode, pas besoin de savoir programmer.
 
-Pour la modifier : ouvrez Sources/FMMini/Personnalisation.swift dans TextEdit, ou demandez à votre assistant de programmation (Claude Code, Codex…) — la fenêtre « Aller plus loin » de l'app contient des demandes prêtes à coller, et POUR-LES-ASSISTANTS.md lui explique les règles du dépôt.
+Pour la modifier : ouvrez Sources/FMMini/Langues.swift (tous les textes, en six langues) ou Sources/FMMini/Personnalisation.swift (tailles, couleurs, crédits, langue par défaut) dans TextEdit, ou demandez à votre assistant de programmation (Claude Code, Codex…) — la fenêtre « Aller plus loin » de l'app contient des demandes prêtes à coller, et POUR-LES-ASSISTANTS.md lui explique les règles du dépôt.
 
 Crédits : acromega + Claude, 2026. Licence MIT. Les audits sont dans audits/.
 
@@ -76,7 +78,7 @@ Une PJ n'est envoyée qu'avec la première question : le badge « PJ : <nom> (N 
 
 ## Menus et clavier
 
-Le menu **Fichier** propose **Nouvelle conversation** (⌘N), **Ajouter une PJ…** (⌘O) et **Fermer** (⌘W). Le menu **Édition** propose aussi **Copier la dernière réponse** (⌘⇧C). Ces raccourcis fonctionnent même lorsque vous écrivez votre message.
+Le menu **Fichier** propose **Nouvelle conversation** (⌘N), **Ajouter une PJ…** (⌘O) et **Fermer** (⌘W). Le menu **Édition** propose aussi **Copier la dernière réponse** (⌘⇧C). Ces raccourcis fonctionnent même lorsque vous écrivez votre message. Le menu **Présentation → Langue** change la langue de l'interface (Français, English, Español, Deutsch, Italiano, Português) sans redémarrer : la conversation en cours est conservée et les réponses suivantes arrivent dans la nouvelle langue.
 
 Tab suit le réglage macOS Réglages Système → Clavier → Navigation au clavier ; toutes les actions ont un raccourci : ⌘N, ⌘O, Entrée, ⌘⇧C.
 
@@ -98,13 +100,13 @@ FM Mini ne sait pas compter, comparer, détecter une contradiction ou dire de fa
 
 ## Personnaliser FM Mini
 
-Vous pouvez adapter les textes, les couleurs, les crédits et la taille de la fenêtre dans [Sources/FMMini/Personnalisation.swift](Sources/FMMini/Personnalisation.swift), sans toucher au reste du dossier.
+Tous les textes de l'interface, dans les six langues, sont dans [Sources/FMMini/Langues.swift](Sources/FMMini/Langues.swift) ; les couleurs, les crédits, la taille de la fenêtre et la langue par défaut sont dans [Sources/FMMini/Personnalisation.swift](Sources/FMMini/Personnalisation.swift). Vous pouvez les adapter sans toucher au reste du dossier.
 
-1. Dans le Finder, faites un clic droit sur `Sources/FMMini/Personnalisation.swift`, choisissez **Ouvrir avec**, puis **TextEdit**.
+1. Dans le Finder, faites un clic droit sur `Sources/FMMini/Langues.swift` (ou `Personnalisation.swift`), choisissez **Ouvrir avec**, puis **TextEdit**.
 2. Modifiez seulement le texte entre guillemets (ou les deux nombres de `CGSize` pour la taille de la fenêtre), puis enregistrez.
 3. Dans Terminal, après `cd ~/fm-mini`, relancez `./make-app.sh`.
 
-Par exemple, vous pouvez changer une puce en remplaçant le texte de `puceResume`, tutoyer en remplaçant « vous » par « tu » dans `consigneModele`, ou agrandir la fenêtre en augmentant `width` et `height` de `tailleFenetreParDefaut`. Ne modifiez ni les noms des constantes, ni les commentaires, ni un autre fichier du dossier.
+Par exemple, vous pouvez changer une puce en remplaçant le texte de `.puceResume` dans la langue voulue, tutoyer en remplaçant « vouvoies » par « tutoies » dans `.consigneModele` du bloc français, corriger une traduction, ou agrandir la fenêtre en augmentant `width` et `height` de `tailleFenetreParDefaut`. Ne modifiez ni les noms des clés, ni les commentaires, ni un autre fichier du dossier.
 
 ## Aller plus loin
 
@@ -132,4 +134,4 @@ Deux commandes lancent l'autotest, toutes deux depuis Terminal.app après `cd ~/
 - `swift run -c release FMMini --autotest` compile puis lance l'autotest sans passer par l'app construite ;
 - `build/FM Mini.app/Contents/MacOS/FMMini --autotest` lance l'autotest de l'app déjà construite par `make-app.sh`.
 
-L'autotest vérifie la réponse normale sans PJ, « salut », un résumé, les puces PJ (annulation et insertion sans envoi), la fenêtre de contexte, la lecture du DOCX et du PDF sans texte des fixtures, la limite de 5 Mo, le découpage d'une PJ de 20 000 mots et la compression d'une conversation.
+Ajoutez `--langue en` (ou es, de, it, pt, fr) pour limiter les vérifications de langue à une seule langue. L'autotest vérifie, pour chaque langue, l'accueil, les clés de traduction, la réponse à « hello » dans la bonne langue, puis la bascule d'une conversation du français vers l'anglais ; et, en français, la réponse normale sans PJ, « salut », un résumé, les puces PJ (annulation et insertion sans envoi), la fenêtre de contexte, la lecture du DOCX et du PDF sans texte des fixtures, la limite de 5 Mo, le découpage d'une PJ de 20 000 mots et la compression d'une conversation.

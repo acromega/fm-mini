@@ -46,7 +46,9 @@ swift build -c release
 
 APP="$ROOT/build/FM Mini.app"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/fr.lproj"
+mkdir -p "$APP/Contents/MacOS"
+# Un dossier .lproj par langue de l'interface : AppKit traduit alors ses menus standard dans la langue choisie.
+for lang in fr en es de it pt; do mkdir -p "$APP/Contents/Resources/$lang.lproj"; done
 cp "$ROOT/.build/release/FMMini" "$APP/Contents/MacOS/FMMini"
 cp "$ROOT/Resources/credits.jpg" "$APP/Contents/Resources/credits.jpg"
 cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
@@ -58,8 +60,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>org.local.fmmini</string>
   <key>CFBundleName</key><string>FM Mini</string>
   <key>CFBundleDevelopmentRegion</key><string>fr</string>
-  <key>CFBundleShortVersionString</key><string>1.3.15</string>
-  <key>CFBundleVersion</key><string>1.3.15</string>
+  <key>CFBundleShortVersionString</key><string>1.4.0</string>
+  <key>CFBundleVersion</key><string>1.4.0</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>27.0</string>
   <key>NSHighResolutionCapable</key><true/>
