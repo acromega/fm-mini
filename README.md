@@ -1,4 +1,4 @@
-# FM Mini 1.3.6
+# FM Mini 1.3.9
 
 FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans fichier joint, elle répond normalement. Avec un seul fichier joint, elle répond uniquement à partir de ce document.
 
@@ -21,9 +21,11 @@ Un document joint n’est envoyé qu’avec la première question : le badge « 
 
 La fenêtre s’ouvre pour la première fois au centre de l’écran en format vertical (460 × 760), peut être réduite jusqu’à 400 × 560, et mémorise ensuite sa taille et sa position.
 
-## Étendre le modèle
+## Aller plus loin
 
-Le menu **Aide → Étendre le modèle…**, ou le lien au bas de l’accueil, ouvre une fenêtre consacrée à l’écosystème Foundation Models. Elle présente les briques officielles d’Apple, les serveurs MCP qui donnent des outils au modèle, et les outils qui exposent le modèle Apple à d’autres assistants. Les détections éventuellement affichées sont locales.
+Le menu **Aide → Aller plus loin…**, ou le lien au bas de l’accueil, ouvre une fenêtre de six cartes. Elle explique trois capacités déjà présentes sur le Mac (dictée, Raccourcis et Terminal), puis trois ajouts que vous pouvez demander à votre assistant de programmation : lecture d’images et de scans, pages web, ou dossier de documents. Les trois dernières cartes copient une demande prête à coller ; la fenêtre ne détecte rien, n’exécute rien et ne télécharge rien.
+
+Les demandes copiées renvoient à [POUR-LES-ASSISTANTS.md](POUR-LES-ASSISTANTS.md) et à [SPEC.md](SPEC.md), qui décrivent les règles de travail du projet.
 
 Vous pouvez joindre un fichier `.txt`, `.md`, `.csv`, `.json`, `.log`, `.rtf`, `.docx` ou `.pdf` contenant du texte. Les PDF issus d’un scan sans texte ne peuvent pas être lus. Appuyez sur Entrée pour envoyer ; Maj-Entrée ajoute une ligne. Le temps de réponse est affiché sous chaque réponse du modèle.
 

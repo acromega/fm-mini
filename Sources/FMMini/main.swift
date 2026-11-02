@@ -8,7 +8,7 @@ import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-private let accessibleSecondary = Color(white: 0.42)
+let accessibleSecondary = Color(white: 0.42)
 private let frenchNumberLocale = Locale(identifier: "fr_FR")
 
 private func formattedNumber(_ value: Int) -> String {
@@ -921,7 +921,7 @@ struct WelcomeView: View {
                 }
             }
             .frame(maxWidth: 650)
-            Button("Aller plus loin → Étendre le modèle") {
+            Button("Aller plus loin →") {
                 openWindow(id: "extension")
             }
             .buttonStyle(.link)
@@ -1082,223 +1082,6 @@ struct OversizedDocumentCard: View {
     }
 }
 
-struct InstallationSection: Identifiable {
-    let title: String
-    let tools: [InstallationTool]
-    var id: String { title }
-}
-
-struct InstallationTool: Identifiable {
-    let id: String
-    let name: String
-    let about: String
-    let needed: String
-    let unnecessary: String
-    let prerequisite: String
-    let tag: String?
-    let statusKey: String?
-    let url: String?
-}
-
-enum InstallationAvailability {
-    case detected(String?)
-    case unavailable
-}
-
-@MainActor
-final class InstallationModel: ObservableObject {
-    @Published private(set) var statuses: [String: InstallationAvailability] = [:]
-
-    func checkAll() {
-        statuses = InstallationChecker.checkAll()
-    }
-
-    func status(for tool: InstallationTool) -> InstallationAvailability? {
-        guard let key = tool.statusKey else { return nil }
-        return statuses[key]
-    }
-
-    func open(_ tool: InstallationTool) {
-        InstallationActions.open(tool)
-    }
-}
-
-enum InstallationChecker {
-    static func checkAll() -> [String: InstallationAvailability] {
-        let fileManager = FileManager.default
-        return [
-            "apfel": commandSucceeds("/usr/bin/which", ["apfel"]) ? .detected(nil) : .unavailable,
-            "python-sdk": commandSucceeds("/usr/bin/env", ["python3", "-c", "import apple_fm_sdk"]) ? .detected(nil) : .unavailable,
-            "fm-serve": fileManager.fileExists(atPath: "/usr/bin/fm") ? .detected(nil) : .unavailable
-        ]
-    }
-
-    private static func commandSucceeds(_ executable: String, _ arguments: [String]) -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
-        do {
-            try process.run()
-            let deadline = Date().addingTimeInterval(1)
-            while process.isRunning && Date() < deadline {
-                RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-            }
-            if process.isRunning {
-                process.terminate()
-                return false
-            }
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
-    }
-
-}
-
-enum InstallationActions {
-    static func open(_ tool: InstallationTool) {
-        switch tool.id {
-        case "fm-serve":
-            openTerminal()
-        case "apple-docs":
-            openURLs([
-                "https://developer.apple.com/documentation/foundationmodels",
-                "https://developer.apple.com/videos/play/wwdc2026/241/",
-                "https://developer.apple.com/videos/play/wwdc2026/334/",
-                "https://developer.apple.com/videos/play/wwdc2026/339/"
-            ])
-        default:
-            if let url = tool.url.flatMap(URL.init(string:)) { NSWorkspace.shared.open(url) }
-        }
-    }
-
-    private static func openTerminal() {
-        let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
-        if FileManager.default.fileExists(atPath: terminal.path) {
-            NSWorkspace.shared.open(terminal)
-        } else {
-            NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Utilities/Terminal.app"))
-        }
-    }
-
-    private static func openURLs(_ values: [String]) {
-        for value in values {
-            if let url = URL(string: value) { NSWorkspace.shared.open(url) }
-        }
-    }
-}
-
-struct InstallationView: View {
-    @Local private var model = InstallationModel()
-
-    private let sections: [InstallationSection] = [
-        InstallationSection(title: "Les briques officielles d’Apple", tools: [
-            InstallationTool(id: "utilities", name: "Foundation Models utilities", about: "les compléments officiels du framework : gérer les longues conversations (résumé, fenêtre glissante), définir des « compétences » que le modèle active à la demande, et parler à n’importe quel serveur de modèle compatible OpenAI avec le même code.", needed: "vous développez une app en Swift avec le modèle et que vos conversations dépassent la fenêtre de contexte, ou si vous voulez brancher un autre modèle sans changer votre code.", unnecessary: "vous n’écrivez pas de Swift.", prerequisite: "Swift, Xcode conseillé", tag: "paquet Swift", statusKey: nil, url: "https://github.com/apple/foundation-models-utilities"),
-            InstallationTool(id: "python-sdk", name: "SDK Python Apple (apple-fm-sdk)", about: "piloter le modèle depuis Python : lui donner des outils (fonctions Python), obtenir des sorties structurées, et surtout mesurer ses réponses sur des séries de tests.", needed: "vous écrivez des scripts Python, ou si vous voulez vérifier sérieusement ce que le modèle réussit et rate avant de vous y fier.", unnecessary: "vous ne programmez pas.", prerequisite: "Python 3.10+, Command Line Tools", tag: nil, statusKey: "python-sdk", url: "https://github.com/apple/python-apple-fm-sdk"),
-            InstallationTool(id: "apple-docs", name: "Documentation et sessions WWDC26", about: "la référence officielle, et trois vidéos de vingt minutes : les nouveautés du framework, la ligne de commande et Python, et comment brancher un autre modèle.", needed: "vous voulez comprendre ce qui se passe sous le capot avant d’aller plus loin.", unnecessary: "vous voulez seulement vous servir de l’app.", prerequisite: "aucun", tag: "documentation", statusKey: nil, url: "https://developer.apple.com/documentation/foundationmodels")
-        ]),
-        InstallationSection(title: "Donner des outils au modèle (serveurs MCP → modèle Apple)", tools: [
-            InstallationTool(id: "swift-mcp", name: "SwiftMCP", about: "connecter le modèle Apple à n’importe quel serveur MCP en trois lignes de Swift : chaque outil du serveur devient un outil que le modèle peut appeler.", needed: "vous développez une app Swift et vous avez déjà des serveurs MCP (fichiers, calendrier, bases de données…).", unnecessary: "vous ne développez pas en Swift.", prerequisite: "Swift", tag: "paquet Swift", statusKey: nil, url: "https://swiftpackageindex.com/keywords/apple-intelligence"),
-            InstallationTool(id: "apple-foundation-mcp-tool", name: "AppleFoundationMCPTool", about: "la même idée, avec découverte automatique des outils d’un serveur MCP (local ou distant) au lancement.", needed: "vos serveurs MCP changent souvent et que vous ne voulez pas les décrire à la main.", unnecessary: "SwiftMCP vous suffit — l’un ou l’autre.", prerequisite: "Swift", tag: "paquet Swift", statusKey: nil, url: "https://github.com/airy10/AppleFoundationMCPTool"),
-            InstallationTool(id: "apfel", name: "apfel + apfel-run", about: "le modèle Apple en outil du Terminal, avec branchement de serveurs MCP par un simple fichier de configuration — sans écrire de code.", needed: "vous voulez essayer « le modèle + des outils MCP » depuis le Terminal avant d’écrire une app, ou si vous êtes encore sur macOS 26.", unnecessary: "vous ne vous servez pas du Terminal.", prerequisite: "Homebrew", tag: nil, statusKey: "apfel", url: "https://github.com/Arthur-Ficial/apfel")
-        ]),
-        InstallationSection(title: "Mettre le modèle au service d’autres assistants (modèle Apple → serveur MCP)", tools: [
-            InstallationTool(id: "mcp-foundation-models", name: "mcp-foundation-models", about: "exposer le modèle Apple comme un serveur MCP, pour que Claude Desktop, Claude Code ou tout autre assistant compatible puisse lui déléguer des tâches locales, gratuites et privées : résumer, extraire, classer.", needed: "vous utilisez déjà un assistant qui parle MCP et que vous voulez garder certains traitements sur votre Mac.", unnecessary: "vous n’utilisez pas ces assistants.", prerequisite: "Swift pour le compiler", tag: "outil Terminal", statusKey: nil, url: "https://github.com/phimage/mcp-foundation-models"),
-            InstallationTool(id: "fm-serve", name: "fm serve (déjà sur votre Mac)", about: "la variante sans MCP — `fm serve` ouvre une porte compatible OpenAI sur http://127.0.0.1:1976, que beaucoup de logiciels savent utiliser (éditeurs, outils de notes) ; à lancer depuis l’application Terminal.", needed: "un de vos logiciels propose « serveur compatible OpenAI » dans ses réglages.", unnecessary: "vous dialoguez seulement ici.", prerequisite: "Terminal", tag: "outil Terminal", statusKey: "fm-serve", url: nil)
-        ])
-    ]
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Le modèle Apple sait lire et écrire. Pour qu’il agisse — lire un fichier, consulter un calendrier, interroger une base — il faut lui donner des outils ; MCP (Model Context Protocol) est la façon standard de les brancher, dans un sens comme dans l’autre.")
-                    .font(.callout)
-                    .foregroundStyle(Color(red: 0.28, green: 0.28, blue: 0.30))
-                    .fixedSize(horizontal: false, vertical: true)
-                ForEach(sections) { section in
-                    VStack(alignment: .leading, spacing: 9) {
-                        Text(section.title).font(.headline)
-                        ForEach(section.tools) { tool in
-                            InstallationToolCard(tool: tool, status: model.status(for: tool)) {
-                                model.open(tool)
-                            }
-                        }
-                    }
-                }
-                Text("Toutes ces vérifications sont faites sur votre Mac ; rien n’est téléchargé ni installé par FM Mini.")
-                    .font(.caption)
-                    .foregroundStyle(accessibleSecondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 4)
-            }
-            .padding(20)
-        }
-        .background(Color.white)
-        .task { model.checkAll() }
-    }
-}
-
-struct InstallationToolCard: View {
-    let tool: InstallationTool
-    let status: InstallationAvailability?
-    let open: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 7) {
-                Text(tool.name).font(.subheadline.weight(.bold))
-                if let status {
-                    Circle()
-                        .fill(statusColor(status))
-                        .frame(width: 8, height: 8)
-                    Text(statusText(status))
-                        .font(.caption2)
-                        .foregroundStyle(accessibleSecondary)
-                }
-                if let tag = tool.tag {
-                    Text(tag)
-                        .font(.caption2)
-                        .foregroundStyle(accessibleSecondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.gray.opacity(0.12), in: Capsule())
-                }
-                Spacer()
-            }
-            Text("À quoi ça sert : \(tool.about)")
-                .font(.caption)
-            Label("Vous en avez besoin si… \(tool.needed)", systemImage: "circle.fill")
-                .font(.caption)
-                .foregroundStyle(Color.green)
-            Label("Inutile si… \(tool.unnecessary)", systemImage: "circle.fill")
-                .font(.caption)
-                .foregroundStyle(accessibleSecondary)
-            Text("Prérequis : \(tool.prerequisite)")
-                .font(.caption2)
-                .foregroundStyle(accessibleSecondary)
-            Button("Ouvrir", action: open)
-                .controlSize(.small)
-        }
-        .padding(12)
-        .background(Color.gray.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.18), lineWidth: 1))
-    }
-
-    private func statusColor(_ status: InstallationAvailability) -> Color {
-        if case .detected = status { return .green }
-        return .gray
-    }
-
-    private func statusText(_ status: InstallationAvailability) -> String {
-        switch status {
-        case .detected(let detail): return detail ?? "détecté"
-        case .unavailable: return "non détecté"
-        }
-    }
-}
 
 struct MultiLineInput: NSViewRepresentable {
     @Binding var text: String
@@ -1439,11 +1222,11 @@ struct FMMiniApp: App {
             AboutCommands()
         }
 
-        Window("Étendre le modèle", id: "extension") {
+        Window("Aller plus loin", id: "extension") {
             InstallationView()
                 .preferredColorScheme(.light)
         }
-        .defaultSize(width: 520, height: 680)
+        .defaultSize(width: 520, height: 720)
         .windowResizability(.contentMinSize)
 
         Window("À propos", id: "about") {
@@ -1460,7 +1243,7 @@ struct InstallationCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .help) {
-            Button("Étendre le modèle…") {
+            Button("Aller plus loin…") {
                 openWindow(id: "extension")
             }
         }
@@ -1569,14 +1352,23 @@ enum AutoTest {
         let reporter = AutoTestReporter()
         reporter.emit("FM Mini autotest — début")
         reporter.emit("AUTOTEST découpage unitaire : \(DocumentSplitter.structuredSplitUnitTest() && DocumentSplitter.longSentenceUnitTest() ? "OK" : "ÉCHEC")")
+        let pasteboardSnapshot = PasteboardSnapshot()
+        defer { pasteboardSnapshot.restore() }
+        let cards = FurtherWindowContent.cards
+        let requests = cards.compactMap { card -> String? in
+            if case .copy(let request) = card.action { return request }
+            return nil
+        }
+        let windowPasses = cards.count == 6 && requests.count == 3 && requests.allSatisfy {
+            BubbleClipboard.copy($0) && !(NSPasteboard.general.string(forType: .string) ?? "").isEmpty
+        }
+        reporter.emit("AUTOTEST fenêtre Aller plus loin : \(windowPasses ? "OK" : "ÉCHEC") — 6 cartes, 3 presse-papiers non vides")
         guard auditFixtures(reporter: reporter) else { return 1 }
         let model = SystemLanguageModel.default
         guard case .available = model.availability else {
             reporter.emit("AUTOTEST 1: ÉCHEC — modèle indisponible : \(model.availability)")
             return 1
         }
-        let pasteboardSnapshot = PasteboardSnapshot()
-        defer { pasteboardSnapshot.restore() }
         do {
             let normalSession = LanguageModelSession(instructions: ChatModel.instructions)
             let normalStart = Date()
