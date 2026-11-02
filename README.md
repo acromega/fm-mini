@@ -1,4 +1,4 @@
-# FM Mini 1.2.2
+# FM Mini 1.3
 
 FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans fichier joint, elle répond normalement. Avec un seul fichier joint, elle répond uniquement à partir de ce document.
 
@@ -27,7 +27,7 @@ Le modèle ne peut lire qu’une quantité limitée de texte à la fois : ce n�
 
 ## Limites
 
-Un fichier ne peut pas dépasser 5 Mo. Le modèle a aussi une fenêtre de contexte limitée (selon le Mac, habituellement 4 096 ou 8 192 jetons) : l’application indique sous le bouton de pièce jointe une estimation en mots (environ 2 600 ou 5 300 mots). Lorsqu’un document dépasse cette fenêtre, FM Mini propose ses parties ; lorsque la conversation devient longue, elle conserve le document et résume automatiquement les anciens échanges. Il n’a pas de connaissance du monde en temps réel et les garde-fous d’Apple peuvent refuser certaines demandes.
+Un fichier ne peut pas dépasser 5 Mo. Le modèle a aussi une fenêtre de contexte limitée (selon le Mac, habituellement 4 096 ou 8 192 jetons) : l’application indique sous le bouton de pièce jointe une estimation en mots (environ 2 600 ou 5 300 mots). Plus la conversation est longue, plus chaque réponse est lente ; FM Mini la compresse automatiquement. Lorsqu’un document dépasse cette fenêtre, FM Mini propose ses parties ; lorsque la conversation devient longue, elle conserve le document et résume automatiquement les anciens échanges. Il n’a pas de connaissance du monde en temps réel et les garde-fous d’Apple peuvent refuser certaines demandes.
 
 ## Langues
 

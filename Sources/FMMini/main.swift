@@ -230,6 +230,7 @@ final class ChatModel: ObservableObject {
     @Published var unavailableReason: String?
     @Published var isSending = false
     @Published private(set) var contextTokenCount = 0
+    @Published private(set) var compressionFailed = false
 
     private let model = SystemLanguageModel.default
     private var session: LanguageModelSession?
@@ -259,6 +260,7 @@ final class ChatModel: ObservableObject {
         oversizedDocumentName = nil
         isSending = false
         contextTokenCount = 0
+        compressionFailed = false
         turns = []
         previousSummary = nil
         Task { @MainActor [weak self] in await self?.refreshContextGauge() }
@@ -274,6 +276,7 @@ final class ChatModel: ObservableObject {
         input = ""
         isSending = false
         contextTokenCount = 0
+        compressionFailed = false
         turns = []
         previousSummary = nil
         Task { @MainActor [weak self] in await self?.refreshContextGauge() }
@@ -290,6 +293,10 @@ final class ChatModel: ObservableObject {
     var contextRatio: Double {
         guard contextSize > 0 else { return 0 }
         return Double(contextTokenCount) / Double(contextSize)
+    }
+
+    var shouldShowContextSafetyHint: Bool {
+        compressionFailed && contextRatio >= 0.85
     }
 
     var documentPartCapacity: Int {
@@ -331,6 +338,7 @@ final class ChatModel: ObservableObject {
                         self.previousSummary = nil
                         self.messages = []
                         self.contextTokenCount = 0
+                        self.compressionFailed = false
                     }
                     self.attachment = TextAttachment(name: url.lastPathComponent, content: content, tokenCount: tokens)
                     await self.refreshContextGauge()
@@ -366,6 +374,7 @@ final class ChatModel: ObservableObject {
                 session = newSession()
                 turns = []
                 contextTokenCount = 0
+                compressionFailed = false
                 messages = card.map { [$0] } ?? []
                 if hadConversation {
                     messages.append(ChatItem(role: .system, text: "Nouvelle partie chargée : la conversation a été réinitialisée.", durationMilliseconds: nil))
@@ -519,7 +528,11 @@ final class ChatModel: ObservableObject {
     }
 
     private func compressConversationIfNeeded() async {
-        guard contextRatio > 0.85, turns.count > 2, !isCompressing, session != nil else { return }
+        guard contextRatio > 0.60 else { return }
+        guard turns.count > 2, !isCompressing, session != nil else {
+            if contextRatio >= 0.85 { compressionFailed = true }
+            return
+        }
         isCompressing = true
         defer { isCompressing = false }
         let before = contextTokenCount
@@ -534,6 +547,7 @@ final class ChatModel: ObservableObject {
             let compressed = compressedSession(document: attachment?.isLoaded == true ? attachment : nil, summary: summary, recentTurns: recentTurns)
             let compressedTokens = try await model.tokenCount(for: compressed.transcript)
             if compressedTokens > Int(Double(contextSize) * 0.85) {
+                compressionFailed = true
                 messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(before) / \(contextSize) jetons).", durationMilliseconds: nil, action: .conversationFull))
                 return
             }
@@ -541,9 +555,11 @@ final class ChatModel: ObservableObject {
             turns = recentTurns
             previousSummary = summary
             contextTokenCount = compressedTokens
+            compressionFailed = false
             let documentSuffix = attachment?.isLoaded == true ? " (le document est conservé en entier)." : "."
             messages.append(ChatItem(role: .system, text: "Conversation compressée : \(before) → \(compressedTokens) jetons\(documentSuffix)", durationMilliseconds: nil))
         } catch {
+            compressionFailed = true
             messages.append(ChatItem(role: .error, text: errorText(error), durationMilliseconds: nil))
         }
     }
@@ -717,7 +733,7 @@ struct ContextGauge: View {
             ProgressView(value: min(model.contextRatio, 1))
                 .controlSize(.small)
                 .tint(color)
-            if model.contextRatio >= 0.85 {
+            if model.shouldShowContextSafetyHint {
                 Text("Conversation presque pleine.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -1203,7 +1219,7 @@ enum AutoTest {
         let firstQuestionAnswer = try await session.respond(to: "Quelle était ma première question ?", options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 24)).content
         let correctDocument = documentAnswer.localizedCaseInsensitiveContains("compost")
         let remembered = firstQuestionAnswer.localizedCaseInsensitiveContains("sujet") || firstQuestionAnswer.localizedCaseInsensitiveContains("première")
-        return (before > Int(Double(limit) * 0.85) && after < before && after <= Int(Double(limit) * 0.85) && documentInjectionCount == 1 && correctDocument && remembered, before, after, documentAnswer, firstQuestionAnswer, questionTimings, documentInjectionCount)
+        return (before > Int(Double(limit) * 0.60) && after < before && after <= Int(Double(limit) * 0.85) && documentInjectionCount == 1 && correctDocument && remembered, before, after, documentAnswer, firstQuestionAnswer, questionTimings, documentInjectionCount)
     }
 
     private static func compressionSession(document: String, summary: String, recentTurns: [ConversationTurn]) -> LanguageModelSession {
