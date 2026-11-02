@@ -192,6 +192,7 @@ enum AttachmentReadError: Error {
     case tooLarge(Int)
     case scannedPDF
     case unreadableText
+    case damagedDocument
 }
 
 enum AttachmentReader {
@@ -207,7 +208,11 @@ enum AttachmentReader {
         case "rtf", "docx":
             let documentType: NSAttributedString.DocumentType = url.pathExtension.lowercased() == "rtf" ? .rtf : .officeOpenXML
             let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [.documentType: documentType]
-            return try NSAttributedString(url: url, options: options, documentAttributes: nil).string
+            do {
+                return try NSAttributedString(url: url, options: options, documentAttributes: nil).string
+            } catch {
+                throw AttachmentReadError.damagedDocument
+            }
         case "pdf":
             guard let text = PDFDocument(url: url)?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
                 throw AttachmentReadError.scannedPDF
@@ -237,6 +242,7 @@ final class ChatModel: ObservableObject {
     private var session: LanguageModelSession?
     private var turns: [ConversationTurn] = []
     private var isCompressing = false
+    private var responseTask: Task<Void, Never>?
     private var oversizedDocumentName: String?
     private var previousSummary: String?
 
@@ -254,6 +260,8 @@ final class ChatModel: ObservableObject {
 
     func newConversation() {
         guard unavailableReason == nil else { return }
+        responseTask?.cancel()
+        responseTask = nil
         session = newSession()
         messages = []
         input = ""
@@ -269,6 +277,8 @@ final class ChatModel: ObservableObject {
 
     func newConversationKeepingDocument() {
         guard var attachment else { newConversation(); return }
+        responseTask?.cancel()
+        responseTask = nil
         attachment.isPendingInjection = false
         attachment.isLoaded = true
         self.attachment = attachment
@@ -286,7 +296,7 @@ final class ChatModel: ObservableObject {
     var attachmentHint: String {
         let approximateWords = Int((Double(model.contextSize) * 0.9 / 1.4 / 100).rounded() * 100)
         let display = approximateWords > 0 ? approximateWords.formatted(.number.locale(Locale(identifier: "fr_FR"))) : "?"
-        return "Fichiers acceptés : .txt .md .csv .json .rtf .docx .pdf (texte, pas de scan) — jusqu’à environ \(display) mots"
+        return "Fichiers acceptés : .txt .md .csv .json .rtf .docx .pdf (texte, pas de scan) — jusqu’à environ \(display) mots"
     }
 
     var contextSize: Int { model.contextSize }
@@ -378,7 +388,7 @@ final class ChatModel: ObservableObject {
                 compressionFailed = false
                 messages = card.map { [$0] } ?? []
                 if hadConversation {
-                    messages.append(ChatItem(role: .system, text: "Nouvelle partie chargée : la conversation a été réinitialisée.", durationMilliseconds: nil))
+                    messages.append(ChatItem(role: .system, text: "Nouvelle partie chargée : la conversation a été réinitialisée.", durationMilliseconds: nil))
                 }
                 await refreshContextGauge()
             } catch {
@@ -398,8 +408,10 @@ final class ChatModel: ObservableObject {
             sentText = question
         }
         input = ""
-        Task { @MainActor in
+        responseTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
+                try Task.checkCancellation()
                 let contextSize = self.model.contextSize
                 guard contextSize > 0 else {
                     self.messages.append(ChatItem(role: .error, text: "Impossible de connaître la fenêtre de contexte du modèle.", durationMilliseconds: nil))
@@ -433,15 +445,20 @@ final class ChatModel: ObservableObject {
                 self.isSending = true
                 let started = Date()
                 for try await snapshot in session.streamResponse(to: sentText) {
+                    try Task.checkCancellation()
                     self.replace(id: responseID, text: String(snapshot.content), duration: nil)
                 }
+                try Task.checkCancellation()
                 let duration = Int(Date().timeIntervalSince(started) * 1_000)
                 self.replace(id: responseID, text: self.messageText(id: responseID), duration: duration)
                 self.isSending = false
                 self.turns.append(ConversationTurn(question: question, answer: self.messageText(id: responseID)))
                 await self.refreshContextGauge()
                 await self.compressConversationIfNeeded()
+            } catch is CancellationError {
+                return
             } catch {
+                guard !Task.isCancelled else { return }
                 self.messages.append(ChatItem(role: .error, text: self.errorText(error), durationMilliseconds: nil))
                 self.isSending = false
             }
@@ -464,7 +481,7 @@ final class ChatModel: ObservableObject {
             case .guardrailViolation:
                 return "Les garde-fous d'Apple ont bloqué cette réponse."
             case .contextSizeExceeded:
-                return "La conversation est trop longue pour le modèle : cliquez sur Nouvelle conversation."
+                return "La conversation est trop longue pour le modèle : cliquez sur Nouvelle conversation."
             case .unsupportedLanguageOrLocale:
                 return "Langue non prise en charge."
             case .rateLimited(_), .refusal(_), .unsupportedCapability(_), .unsupportedTranscriptContent(_), .unsupportedGenerationGuide(_), .timeout(_):
@@ -483,9 +500,11 @@ final class ChatModel: ObservableObject {
             let value = String(format: "%.1f", megabytes).replacingOccurrences(of: ".", with: ",")
             return "Fichier trop lourd (\(value) Mo, maximum 5 Mo)"
         case .scannedPDF:
-            return "Ce PDF ne contient pas de texte lisible (scan) : il faudrait d'abord le passer par la reconnaissance de texte."
+            return "Ce PDF ne contient pas de texte lisible (scan) : il faudrait d'abord le passer par la reconnaissance de texte."
         case .unreadableText:
             return "Le fichier doit être du texte UTF-8 lisible."
+        case .damagedDocument:
+            return "Ce fichier est illisible (document endommagé ?)."
         }
     }
 
@@ -558,7 +577,7 @@ final class ChatModel: ObservableObject {
             contextTokenCount = compressedTokens
             compressionFailed = false
             let documentSuffix = attachment?.isLoaded == true ? " (le document est conservé en entier)." : "."
-            messages.append(ChatItem(role: .system, text: "Conversation compressée : \(before) → \(compressedTokens) jetons\(documentSuffix)", durationMilliseconds: nil))
+            messages.append(ChatItem(role: .system, text: "Conversation compressée : \(before) → \(compressedTokens) jetons\(documentSuffix)", durationMilliseconds: nil))
         } catch {
             compressionFailed = true
             messages.append(ChatItem(role: .error, text: errorText(error), durationMilliseconds: nil))
@@ -571,7 +590,7 @@ final class ChatModel: ObservableObject {
         )
         var entries: [Transcript.Entry] = [.instructions(instructionEntry)]
         if let previousSummary {
-            let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: "Résumé des échanges précédents :"))])
+            let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: "Résumé des échanges précédents :"))])
             let response = Transcript.Response(segments: [.text(Transcript.TextSegment(content: previousSummary))])
             entries += [.prompt(prompt), .response(response)]
         }
@@ -592,7 +611,7 @@ final class ChatModel: ObservableObject {
             let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: documentPrompt(document, question: "")))])
             entries += [.prompt(prompt), .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: "Document chargé."))]))]
         }
-        let summaryPrompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: "Résumé des échanges précédents :"))])
+        let summaryPrompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: "Résumé des échanges précédents :"))])
         entries += [.prompt(summaryPrompt), .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: summary))]))]
         for turn in recentTurns {
             let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: turn.question))])
@@ -605,12 +624,13 @@ final class ChatModel: ObservableObject {
 
 struct ContentView: View {
     @ObservedObject var model: ChatModel
+    @Local private var inputHeight: CGFloat = 64
 
     var body: some View {
         Group {
             if let reason = model.unavailableReason {
                 VStack(spacing: 18) {
-                    Text("Le modèle Apple n’est pas disponible : \(reason)")
+                    Text("Le modèle Apple n’est pas disponible : \(reason)")
                         .multilineTextAlignment(.center)
                     Button("Ouvrir Réglages Système") {
                         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Siri-Settings.extension")!)
@@ -681,7 +701,7 @@ struct ContentView: View {
             if let attachment = model.attachment {
                 if !attachment.isLoaded {
                     HStack(spacing: 8) {
-                        Text(attachment.name).lineLimit(1)
+                        Text(attachment.name).lineLimit(2)
                         Text("\(attachment.tokenCount) jetons").foregroundStyle(.secondary)
                         Button("×") { model.attachment = nil }
                             .buttonStyle(.plain)
@@ -692,16 +712,16 @@ struct ContentView: View {
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(Color.gray.opacity(0.12), in: Capsule())
                 } else {
-                    Text("document chargé : \(attachment.name) (\(attachment.tokenCount) jetons)")
-                        .lineLimit(1)
+                    Text("document chargé : \(attachment.name) (\(attachment.tokenCount) jetons)")
+                        .lineLimit(2)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(Color.gray.opacity(0.10), in: Capsule())
                 }
             }
-            MultiLineInput(text: $model.input, focusRevision: model.inputRevision, onSend: model.send)
-                .frame(minHeight: 64, maxHeight: 120)
+            MultiLineInput(text: $model.input, height: $inputHeight, focusRevision: model.inputRevision, onSend: model.send)
+                .frame(height: inputHeight)
             HStack(spacing: 10) {
                 Button("Joindre un fichier…") { model.chooseFile() }
                     .disabled(model.isSending)
@@ -755,18 +775,18 @@ struct WelcomeView: View {
     @Environment(\.openWindow) private var openWindow
 
     private let suggestions = [
-        "Résume ce texte en trois phrases : ",
-        "Corrige l’orthographe et la grammaire de ce texte : ",
-        "Reformule ce message pour qu’il soit plus clair et plus poli : "
+        "Résume ce texte en trois phrases : ",
+        "Corrige l’orthographe et la grammaire de ce texte : ",
+        "Reformule ce message pour qu’il soit plus clair et plus poli : "
     ]
 
     var body: some View {
         VStack(spacing: 15) {
-            Text("BONJOUR, QUE PUIS-JE FAIRE POUR VOUS ?")
+            Text("BONJOUR, QUE PUIS-JE FAIRE POUR VOUS ?")
                 .font(.headline.weight(.medium))
                 .tracking(0.3)
                 .multilineTextAlignment(.center)
-            Text("Je suis gratuit et je tourne entièrement sur votre Mac : vos textes et vos documents ne quittent jamais votre ordinateur, même sans connexion internet. Je comprends 24 langues, dont le français, et je réponds en une seconde environ. Je sais résumer, corriger, reformuler, traduire et extraire l’essentiel de ce que vous me donnez. En revanche, je ne connais pas l’actualité et je n’ai presque pas de connaissances encyclopédiques : donnez-moi le texte sur lequel travailler.")
+            Text("Je suis gratuit et je tourne entièrement sur votre Mac : vos textes et vos documents ne quittent jamais votre ordinateur, même sans connexion internet. Je comprends 24 langues, dont le français, et je réponds en une seconde environ. Je sais résumer, corriger, reformuler, traduire et extraire l’essentiel de ce que vous me donnez. En revanche, je ne connais pas l’actualité et je n’ai presque pas de connaissances encyclopédiques : donnez-moi le texte sur lequel travailler.")
                 .font(.caption)
                 .foregroundStyle(Color(red: 0.28, green: 0.28, blue: 0.30))
                 .multilineTextAlignment(.center)
@@ -1011,7 +1031,14 @@ enum InstallationChecker {
         process.standardError = Pipe()
         do {
             try process.run()
-            process.waitUntilExit()
+            let deadline = Date().addingTimeInterval(1)
+            while process.isRunning && Date() < deadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+            }
+            if process.isRunning {
+                process.terminate()
+                return false
+            }
             return process.terminationStatus == 0
         } catch {
             return false
@@ -1126,7 +1153,7 @@ struct InstallationView: View {
                         }
                     }
                 }
-                Text("Toutes ces vérifications sont faites sur votre Mac ; rien n'est téléchargé ni installé par FM Mini.")
+                Text("Toutes ces vérifications sont faites sur votre Mac ; rien n'est téléchargé ni installé par FM Mini.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -1158,7 +1185,7 @@ struct InstallationToolCard: View {
                 }
                 Spacer()
             }
-            Text("À quoi ça sert : \(tool.about)")
+            Text("À quoi ça sert : \(tool.about)")
                 .font(.caption)
             Label("Vous en avez besoin si… \(tool.needed)", systemImage: "circle.fill")
                 .font(.caption)
@@ -1191,6 +1218,7 @@ struct InstallationToolCard: View {
 
 struct MultiLineInput: NSViewRepresentable {
     @Binding var text: String
+    @Binding var height: CGFloat
     let focusRevision: Int
     let onSend: () -> Void
 
@@ -1204,6 +1232,10 @@ struct MultiLineInput: NSViewRepresentable {
         view.delegate = context.coordinator
         view.isRichText = false
         view.font = .systemFont(ofSize: 14)
+        view.setAccessibilityLabel("Message")
+        view.textContainerInset = NSSize(width: 4, height: 4)
+        view.isVerticallyResizable = true
+        view.textContainer?.widthTracksTextView = true
         view.drawsBackground = true
         view.backgroundColor = .white
         view.onSend = onSend
@@ -1215,6 +1247,7 @@ struct MultiLineInput: NSViewRepresentable {
         guard let view = scroll.documentView as? SendTextView else { return }
         if view.string != text { view.string = text }
         view.onSend = onSend
+        context.coordinator.updateHeight(for: view)
         if context.coordinator.lastFocusRevision != focusRevision {
             context.coordinator.lastFocusRevision = focusRevision
             view.setSelectedRange(NSRange(location: view.string.utf16.count, length: 0))
@@ -1222,12 +1255,27 @@ struct MultiLineInput: NSViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, NSTextViewDelegate {
+    @MainActor final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MultiLineInput
         var lastFocusRevision = 0
         init(_ parent: MultiLineInput) { self.parent = parent }
         func textDidChange(_ notification: Notification) {
-            parent.text = (notification.object as? NSTextView)?.string ?? ""
+            guard let view = notification.object as? NSTextView else { return }
+            parent.text = view.string
+            updateHeight(for: view)
+        }
+
+        func updateHeight(for view: NSTextView) {
+            guard let layoutManager = view.layoutManager, let textContainer = view.textContainer else { return }
+            layoutManager.ensureLayout(for: textContainer)
+            let lineHeight = view.font?.boundingRectForFont.height ?? 17
+            let minimum = ceil(lineHeight * 3 + view.textContainerInset.height * 2)
+            let maximum = ceil(lineHeight * 6 + view.textContainerInset.height * 2)
+            let used = ceil(layoutManager.usedRect(for: textContainer).height + view.textContainerInset.height * 2)
+            let desired = min(maximum, max(minimum, used))
+            if abs(parent.height - desired) > 0.5 {
+                parent.height = desired
+            }
         }
     }
 }
