@@ -405,9 +405,13 @@ final class ChatModel: ObservableObject {
         inputRevision += 1
     }
 
+    static func inputAfterAttachmentSuggestion(currentInput: String, suggestion: String, fileWasAccepted: Bool) -> String {
+        fileWasAccepted ? suggestion : currentInput
+    }
+
     func useAttachmentSuggestion(_ text: String) {
         if attachment != nil {
-            setInput(text)
+            setInput(Self.inputAfterAttachmentSuggestion(currentInput: input, suggestion: text, fileWasAccepted: true))
         } else {
             chooseFile(questionAfterSelection: text)
         }
@@ -421,7 +425,13 @@ final class ChatModel: ObservableObject {
         let fileTypes: [UTType] = AttachmentReader.allowedExtensions.compactMap { UTType(filenameExtension: $0) }
         panel.allowedContentTypes = fileTypes
         panel.message = "Choisissez un document texte"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, let url = panel.url else {
+            if let questionAfterSelection {
+                let nextInput = Self.inputAfterAttachmentSuggestion(currentInput: input, suggestion: questionAfterSelection, fileWasAccepted: false)
+                if nextInput != input { setInput(nextInput) }
+            }
+            return
+        }
         beginDocumentAnalysis()
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -440,7 +450,9 @@ final class ChatModel: ObservableObject {
                     self.compressionFailed = false
                 }
                 self.attachment = TextAttachment(name: url.lastPathComponent, content: content, tokenCount: tokens)
-                if let questionAfterSelection { self.setInput(questionAfterSelection) }
+                if let questionAfterSelection {
+                    self.setInput(Self.inputAfterAttachmentSuggestion(currentInput: self.input, suggestion: questionAfterSelection, fileWasAccepted: true))
+                }
                 await self.refreshContextGauge()
             } catch let error as AttachmentReadError {
                 self.messages.append(ChatItem(role: .error, text: self.attachmentErrorText(error), durationMilliseconds: nil))
@@ -1528,6 +1540,28 @@ enum AutoTest {
         let reporter = AutoTestReporter()
         reporter.emit("FM Mini autotest — début")
         reporter.emit("AUTOTEST découpage unitaire : \(DocumentSplitter.structuredSplitUnitTest() && DocumentSplitter.longSentenceUnitTest() ? "OK" : "ÉCHEC")")
+        let suggestionPasses = await MainActor.run { () -> Bool in
+            let initialInput = "Texte inchangé"
+            let suggestion = Personnalisation.puceResume
+            let cancelledInput = ChatModel.inputAfterAttachmentSuggestion(currentInput: initialInput, suggestion: suggestion, fileWasAccepted: false)
+            let chipModel = ChatModel()
+            chipModel.setInput(initialInput)
+            var loadedPJ = TextAttachment(name: "PJ.txt", content: "contenu", tokenCount: 1)
+            loadedPJ.isLoaded = true
+            chipModel.attachment = loadedPJ
+            chipModel.useAttachmentSuggestion(suggestion)
+            return cancelledInput == initialInput
+                && chipModel.input == suggestion
+                && chipModel.messages.isEmpty
+                && !chipModel.isSending
+        }
+        reporter.emit("AUTOTEST puces PJ : \(suggestionPasses ? "OK" : "ÉCHEC") — annulation inchangée, PJ chargée insérée sans envoi")
+        let welcomeLayout = await MainActor.run { () -> (fits: Bool, height: Int) in
+            let preview = NSHostingView(rootView: WelcomeView(model: ChatModel()).frame(width: 404))
+            let height = Int(ceil(preview.fittingSize.height)) + 56
+            return (height <= 460, height)
+        }
+        reporter.emit("AUTOTEST accueil 460×760 : \(welcomeLayout.fits ? "OK" : "ÉCHEC") — contenu \(welcomeLayout.height) px, sans défilement")
         let pasteboardSnapshot = PasteboardSnapshot()
         defer { pasteboardSnapshot.restore() }
         let cards = FurtherWindowContent.cards
