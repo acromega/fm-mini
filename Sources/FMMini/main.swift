@@ -281,6 +281,7 @@ final class ChatModel: ObservableObject {
     @Published var attachment: TextAttachment?
     @Published var unavailableReason: String?
     @Published var isSending = false
+    @Published var isAnalyzingDocument = false
     @Published private(set) var contextTokenCount = 0
     @Published private(set) var compressionFailed = false
 
@@ -291,6 +292,7 @@ final class ChatModel: ObservableObject {
     private var responseTask: Task<Void, Never>?
     private var oversizedDocumentName: String?
     private var previousSummary: String?
+    private var analysisIndicatorTask: Task<Void, Never>?
 
     init() {
         switch model.availability {
@@ -383,36 +385,39 @@ final class ChatModel: ObservableObject {
         panel.allowedContentTypes = fileTypes
         panel.message = "Choisissez un document texte"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            let content = try AttachmentReader.read(url: url)
-            if let questionAfterSelection { setInput(questionAfterSelection) }
-            Task { @MainActor in
-                do {
-                    let tokens = try await self.model.tokenCount(for: content)
-                    if self.attachment?.isLoaded == true {
-                        self.session = self.newSession()
-                        self.turns = []
-                        self.previousSummary = nil
-                        self.messages = []
-                        self.contextTokenCount = 0
-                        self.compressionFailed = false
-                    }
-                    self.attachment = TextAttachment(name: url.lastPathComponent, content: content, tokenCount: tokens)
-                    await self.refreshContextGauge()
-                } catch {
-                    self.messages.append(ChatItem(role: .error, text: self.errorText(error), durationMilliseconds: nil))
+        beginDocumentAnalysis()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.endDocumentAnalysis() }
+            do {
+                let content = try await Task.detached(priority: .userInitiated) {
+                    try AttachmentReader.read(url: url)
+                }.value
+                if let questionAfterSelection { self.setInput(questionAfterSelection) }
+                let tokens = try await self.model.tokenCount(for: content)
+                if self.attachment?.isLoaded == true {
+                    self.session = self.newSession()
+                    self.turns = []
+                    self.previousSummary = nil
+                    self.messages = []
+                    self.contextTokenCount = 0
+                    self.compressionFailed = false
                 }
+                self.attachment = TextAttachment(name: url.lastPathComponent, content: content, tokenCount: tokens)
+                await self.refreshContextGauge()
+            } catch let error as AttachmentReadError {
+                self.messages.append(ChatItem(role: .error, text: self.attachmentErrorText(error), durationMilliseconds: nil))
+            } catch {
+                self.messages.append(ChatItem(role: .error, text: self.errorText(error), durationMilliseconds: nil))
             }
-        } catch let error as AttachmentReadError {
-            messages.append(ChatItem(role: .error, text: attachmentErrorText(error), durationMilliseconds: nil))
-        } catch {
-            messages.append(ChatItem(role: .error, text: "Le fichier doit être du texte UTF-8 lisible.", durationMilliseconds: nil))
         }
     }
 
     func loadDocumentPart(_ part: DocumentPart) {
         guard !isSending, unavailableReason == nil else { return }
+        beginDocumentAnalysis()
         Task { @MainActor in
+            defer { self.endDocumentAnalysis() }
             do {
                 let tokens = try await model.tokenCount(for: part.content)
                 let instructionTokens = try await model.tokenCount(for: Self.instructions)
@@ -472,7 +477,7 @@ final class ChatModel: ObservableObject {
                     let fileTokens = try await self.model.tokenCount(for: self.documentPrompt(attachment, question: ""))
                     let fileOnlyTotal = instructionTokens + fileTokens
                     guard fileOnlyTotal <= Int(Double(contextSize) * 0.9) else {
-                        self.showOversizedDocumentCard(attachment)
+                        await self.showOversizedDocumentCard(attachment)
                         self.input = question
                         self.isSending = false
                         return
@@ -574,10 +579,30 @@ final class ChatModel: ObservableObject {
         "Réponds uniquement à partir du document ci-dessous.\n\nDocument « \(attachment.name) » :\n\(attachment.content)\n\nQuestion : \(question)"
     }
 
-    private func showOversizedDocumentCard(_ attachment: TextAttachment) {
+    private func beginDocumentAnalysis() {
+        analysisIndicatorTask?.cancel()
+        analysisIndicatorTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            self?.isAnalyzingDocument = true
+        }
+    }
+
+    private func endDocumentAnalysis() {
+        analysisIndicatorTask?.cancel()
+        analysisIndicatorTask = nil
+        isAnalyzingDocument = false
+    }
+
+    private func showOversizedDocumentCard(_ attachment: TextAttachment) async {
+        beginDocumentAnalysis()
+        defer { endDocumentAnalysis() }
         let wordCount = DocumentSplitter.wordCount(attachment.content)
         let capacity = documentPartCapacity
-        let parts = DocumentSplitter.split(attachment.content, maximumWords: capacity)
+        let content = attachment.content
+        let parts = await Task.detached(priority: .userInitiated) {
+            DocumentSplitter.split(content, maximumWords: capacity)
+        }.value
         let words = formattedNumber(wordCount)
         let visibleCapacity = formattedNumber(capacity)
         let text = "Ce document fait \(words) mots (\(tokenLabel(attachment.tokenCount)). Je ne peux lire qu’environ \(visibleCapacity) mots à la fois — c’est la limite de mémoire du modèle, pas un bogue. Je l’ai découpé en \(parts.count) parties ; choisissez celle à charger, ou posez votre question partie par partie."
@@ -783,6 +808,14 @@ struct ContentView: View {
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(Color.gray.opacity(0.10), in: Capsule())
                 }
+            }
+            if model.isAnalyzingDocument {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Analyse du document…")
+                }
+                .font(.caption)
+                .foregroundStyle(accessibleSecondary)
             }
             MultiLineInput(text: $model.input, height: $inputHeight, focusRevision: model.inputRevision, onSend: model.send)
                 .frame(height: inputHeight)
