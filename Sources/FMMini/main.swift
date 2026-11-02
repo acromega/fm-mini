@@ -215,6 +215,7 @@ enum BubbleClipboard {
 
 enum AttachmentReadError: Error {
     case tooLarge(Int)
+    case emptyFile
     case scannedPDF
     case unreadableText
     case damagedDocument
@@ -234,7 +235,11 @@ enum AttachmentReader {
             let documentType: NSAttributedString.DocumentType = url.pathExtension.lowercased() == "rtf" ? .rtf : .officeOpenXML
             let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [.documentType: documentType]
             do {
-                return try NSAttributedString(url: url, options: options, documentAttributes: nil).string
+                let text = try NSAttributedString(url: url, options: options, documentAttributes: nil).string
+                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AttachmentReadError.emptyFile }
+                return text
+            } catch let error as AttachmentReadError {
+                throw error
             } catch {
                 throw AttachmentReadError.damagedDocument
             }
@@ -245,6 +250,7 @@ enum AttachmentReader {
             return text
         default:
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { throw AttachmentReadError.unreadableText }
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AttachmentReadError.emptyFile }
             return text
         }
     }
@@ -524,6 +530,8 @@ final class ChatModel: ObservableObject {
             let megabytes = Double(bytes) / 1_000_000
             let value = String(format: "%.1f", megabytes).replacingOccurrences(of: ".", with: ",")
             return "Fichier trop lourd (\(value) Mo, maximum 5 Mo)"
+        case .emptyFile:
+            return "Ce fichier est vide."
         case .scannedPDF:
             return "Ce PDF ne contient pas de texte lisible (scan) : il faudrait d'abord le passer par la reconnaissance de texte."
         case .unreadableText:
