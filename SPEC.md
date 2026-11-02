@@ -1,4 +1,4 @@
-# FM Mini — SPECIFICATION 1.3.10
+# FM Mini — SPECIFICATION 1.3.11
 
 PURPOSE. Minimal native macOS chat app for Apple's on-device model (FoundationModels): chat in French, attach one text document, copy answers, discover the ecosystem. Nothing else. Target users: non-developers. Must work first try on a fresh Mac.
 
@@ -7,6 +7,8 @@ PREREQUISITES — checked by make-app.sh itself (stop with a clear French messag
 LAUNCH CONTEXT RULE. The on-device model is reachable from a command-line process only when its launch chain goes back to Terminal.app (or from a signed .app launched normally). Agents launched from other apps get error 1008. The autotest and the preflight must say so explicitly instead of failing silently.
 
 BUILD. SwiftPM executable "FMMini", Swift 6, SwiftUI + FoundationModels (+ AppKit, PDFKit), no third-party dependency. No Swift macros: `@Local` wrapper over State(initialValue:) with Binding projection; ObservableObject + @Published. make-app.sh: preflight → swift build -c release → build/FM Mini.app (bundle id org.local.fmmini, CFBundleShortVersionString = version, LSMinimumSystemVersion 27.0, NSHighResolutionCapable, CFBundleDevelopmentRegion = fr, Contents/Resources/fr.lproj) → codesign --force --deep --sign - → prints the open command. Git: one commit per delivered change, working tree clean at delivery.
+
+ICON. `Resources/AppIcon.icns` is copied to `Contents/Resources/AppIcon.icns`; `CFBundleIconFile` is `AppIcon`, and the same bundled icon appears in the Dock, Finder and the “À propos” window.
 
 WINDOW. Portrait side-panel: default 460×760, minimum 400×560, resizable, frame remembered (frameAutosaveName), centered on first launch. Light scheme, white background. Legible at 400 px wide: no clipping; long file names wrap on two lines rather than being truncated.
 

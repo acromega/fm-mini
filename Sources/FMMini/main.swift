@@ -1362,7 +1362,7 @@ struct FMMiniApp: App {
             AboutView()
                 .preferredColorScheme(.light)
         }
-        .defaultSize(width: 520, height: 500)
+        .defaultSize(width: 520, height: 600)
         .windowResizability(.contentSize)
     }
 }
@@ -1428,6 +1428,11 @@ struct AboutView: View {
         return NSImage(contentsOf: url)
     }
 
+    private var appIcon: NSImage? {
+        guard let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
     var body: some View {
         VStack(spacing: 12) {
             if let creditsImage {
@@ -1435,6 +1440,13 @@ struct AboutView: View {
                     .resizable()
                     .scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            if let appIcon {
+                Image(nsImage: appIcon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 64, height: 64)
+                    .accessibilityLabel("Icône FM Mini")
             }
             VStack(spacing: 4) {
                 Text("FM Mini").font(.headline.weight(.bold))

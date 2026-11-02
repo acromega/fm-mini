@@ -1,4 +1,4 @@
-# FM Mini 1.3.10
+# FM Mini 1.3.11
 
 FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans fichier joint, elle répond normalement. Avec un seul fichier joint, elle répond uniquement à partir de ce document.
 
@@ -68,6 +68,7 @@ FM Mini ne sait pas compter, comparer, détecter une contradiction ou dire de fa
 - Si une partie sélectionnée ne répond pas à votre question, choisissez une autre partie dans la carte du document ou joignez un extrait plus court.
 - Un fichier de plusieurs Mo peut demander quelques dizaines de secondes à lire et à découper ; l’indication **Analyse du document…** reste visible pendant ce travail.
 - Lors de la vérification, un script Swift isolé a pu afficher une erreur Apple `ModelManagerServices` alors que l’application signée fonctionnait. Dans ce cas, construisez et ouvrez l’application avec les trois commandes ci-dessus plutôt que d’essayer le modèle depuis un script de shell.
+- Si l’ancienne icône reste affichée après une reconstruction, c’est généralement le cache du Finder ou du Dock : exécutez `touch "build/FM Mini.app"`, puis rouvrez l’application. Si cela ne suffit pas, relancez le Finder ou le Dock.
 
 ## Vérification technique
 
