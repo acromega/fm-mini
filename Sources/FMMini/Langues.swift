@@ -113,6 +113,15 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Joi
     static let demandeDossierFR = #"""
 Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Choisir un dossier… » : la session reçoit deux outils FoundationModels (protocole Tool) limités à ce dossier : listerFichiers() → noms et tailles des fichiers .txt .md .csv .json .rtf .docx .pdf (sous-dossiers compris, 200 au plus) ; lireFichier(nom) → texte du fichier par le lecteur existant, tronqué à 3 000 mots avec la mention « (suite coupée) ». Sans macro : les Arguments de chaque outil sont écrits à la main (ConvertibleFromGeneratedContent + GenerationSchema statique). Badge « dossier : <nom> (N fichiers) ». Consigne ajoutée pour la session avec dossier : « Pour répondre sur les fichiers, commence par listerFichiers, puis lis seulement ceux qui sont utiles. » Erreurs en ligne. Mets à jour SPEC.md et README. Autotest : dossier temporaire en mémoire impossible → créer trois fichiers dans un dossier sous $TMPDIR, poser une question dont la réponse est dans le deuxième, vérifier l'appel des deux outils, supprimer le dossier. Version : ajoute « + dossier ». Un commit par étape, autotest depuis Terminal.app.
 """#
+    static let demandeImagesEN = #"""
+In ~/fm-mini, read POUR-LES-ASSISTANTS.md then SPEC.md. Add text recognition: “Add an attachment…” also accepts png, jpg, jpeg, heic, tiff, and PDFs without text are no longer refused. The text is extracted on the Mac with Vision (RecognizeTextRequest, accurate level, languages fr and en, automatic detection; for a PDF, each page is rendered as a 200 dpi image then recognized, pages separated by a blank line). During processing: “Recognizing text…” with an activity indicator; the result becomes the attached document, like a .txt, badge “<name> (recognized text, N tokens)”. If nothing is recognized: “No text recognized in this file.” Add every new visible string to Langues.swift in the six languages. Update the “Accepted attachments” line, the scanned-PDF message, SPEC.md and README. Autotest: generate in memory an image containing three lines of French text and check that the model gives back one of its words. Version: append “+ image reading” to the displayed version. One commit per step, autotest from Terminal.app.
+"""#
+    static let demandeWebEN = #"""
+In ~/fm-mini, read POUR-LES-ASSISTANTS.md then SPEC.md. Add an “Attach a web page…” button next to “Add an attachment…”: a window asks for an http(s) address; FM Mini downloads it (URLSession, 15 s, 5 MB maximum), converts the HTML to text (NSAttributedString html → string, then collapses blank lines), and adds it as a document named after the page title, badge “<title> (web page, N tokens)”. A document that is too long goes through the existing splitting. Inline errors: “Address unreachable.”, “This page contains no readable text.”. Add every new visible string to Langues.swift in the six languages. Update SPEC.md (PRIVACY section: this feature is the only network call, only to the address entered) and README. Autotest: check that without using this feature no socket is opened (lsof), and that the feature converts an HTML document built in memory. Version: append “+ web pages”. One commit per step, autotest from Terminal.app.
+"""#
+    static let demandeDossierEN = #"""
+In ~/fm-mini, read POUR-LES-ASSISTANTS.md then SPEC.md. Add a “Choose a folder…” button: the session receives two FoundationModels tools (Tool protocol) limited to that folder: listFiles() → names and sizes of the .txt .md .csv .json .rtf .docx .pdf files (subfolders included, 200 at most); readFile(name) → the file's text through the existing reader, truncated to 3,000 words with the note “(rest cut)”. No macros: the Arguments of each tool are written by hand (ConvertibleFromGeneratedContent + static GenerationSchema). Badge “folder: <name> (N files)”. Instruction added for a session with a folder: “To answer about the files, start with listFiles, then read only the useful ones.” Inline errors. Add every new visible string to Langues.swift in the six languages. Update SPEC.md and README. Autotest: an in-memory temporary folder is impossible → create three files in a folder under $TMPDIR, ask a question whose answer is in the second one, check that both tools are called, delete the folder. Version: append “+ folder”. One commit per step, autotest from Terminal.app.
+"""#
 
     static let fr: [Cle: String] = [
         .titreAccueil: "BONJOUR, QUE PUIS-JE FAIRE POUR VOUS ?",
@@ -337,9 +346,9 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .carteWebDonnees: "the page's address is sent over the internet to download it — the only exception to “everything stays on the Mac”; the rest of the conversation does not leave.",
         .carteDossierTitre: "Query a folder of documents",
         .carteDossierApport: "choose a folder; the model can list its text files and read the one it needs to answer.",
-        .demandeImages: demandeImagesFR,
-        .demandeWeb: demandeWebFR,
-        .demandeDossier: demandeDossierFR
+        .demandeImages: demandeImagesEN,
+        .demandeWeb: demandeWebEN,
+        .demandeDossier: demandeDossierEN
     ]
 
     static let es: [Cle: String] = [
@@ -451,9 +460,9 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .carteWebDonnees: "la dirección de la página se envía por internet para descargarla: es la única excepción a «todo se queda en el Mac»; el resto de la conversación no sale.",
         .carteDossierTitre: "Consultar una carpeta de documentos",
         .carteDossierApport: "elija una carpeta; el modelo puede listar sus archivos de texto y leer el que necesite para responder.",
-        .demandeImages: demandeImagesFR,
-        .demandeWeb: demandeWebFR,
-        .demandeDossier: demandeDossierFR
+        .demandeImages: demandeImagesEN,
+        .demandeWeb: demandeWebEN,
+        .demandeDossier: demandeDossierEN
     ]
 
     static let de: [Cle: String] = [
@@ -565,9 +574,9 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .carteWebDonnees: "die Adresse der Seite wird ins Internet gesendet, um sie herunterzuladen — die einzige Ausnahme von „alles bleibt auf dem Mac“; der Rest der Unterhaltung verlässt den Mac nicht.",
         .carteDossierTitre: "Einen Ordner mit Dokumenten befragen",
         .carteDossierApport: "wählen Sie einen Ordner; das Modell kann seine Textdateien auflisten und die lesen, die es für die Antwort braucht.",
-        .demandeImages: demandeImagesFR,
-        .demandeWeb: demandeWebFR,
-        .demandeDossier: demandeDossierFR
+        .demandeImages: demandeImagesEN,
+        .demandeWeb: demandeWebEN,
+        .demandeDossier: demandeDossierEN
     ]
 
     static let it: [Cle: String] = [
@@ -679,9 +688,9 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .carteWebDonnees: "l'indirizzo della pagina è inviato su internet per scaricarla: è l'unica eccezione a «tutto resta sul Mac»; il resto della conversazione non esce.",
         .carteDossierTitre: "Interrogare una cartella di documenti",
         .carteDossierApport: "scelga una cartella; il modello può elencare i suoi file di testo e leggere quello che gli serve per rispondere.",
-        .demandeImages: demandeImagesFR,
-        .demandeWeb: demandeWebFR,
-        .demandeDossier: demandeDossierFR
+        .demandeImages: demandeImagesEN,
+        .demandeWeb: demandeWebEN,
+        .demandeDossier: demandeDossierEN
     ]
 
     static let pt: [Cle: String] = [
@@ -793,9 +802,9 @@ Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Cho
         .carteWebDonnees: "o endereço da página é enviado pela internet para baixá-la — é a única exceção a “tudo fica no Mac”; o resto da conversa não sai.",
         .carteDossierTitre: "Consultar uma pasta de documentos",
         .carteDossierApport: "escolha uma pasta; o modelo pode listar seus arquivos de texto e ler o que precisar para responder.",
-        .demandeImages: demandeImagesFR,
-        .demandeWeb: demandeWebFR,
-        .demandeDossier: demandeDossierFR
+        .demandeImages: demandeImagesEN,
+        .demandeWeb: demandeWebEN,
+        .demandeDossier: demandeDossierEN
     ]
 }
 

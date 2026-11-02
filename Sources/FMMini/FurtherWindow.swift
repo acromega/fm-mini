@@ -21,7 +21,8 @@ struct FurtherCard: Identifiable {
 enum FurtherWindowContent {
     static func sections(_ langue: Langue) -> [FurtherSection] {
         let t = langue.texte
-        let note: String? = nil
+        // Pour es, de, it et pt, la demande copiée est la version anglaise (Langues.swift) : la carte le signale.
+        let note: String? = (langue == .fr || langue == .en) ? nil : t(.demandeEnAnglais)
         return [
             FurtherSection(title: t(.sectionDejaSurMac), cards: [
                 FurtherCard(id: "dictation", title: t(.carteDicteeTitre), benefit: t(.carteDicteeApport), data: t(.donneesRestentSurMac), note: nil, action: .dictation),
