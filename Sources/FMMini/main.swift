@@ -991,6 +991,7 @@ struct OversizedDocumentCard: View {
                         Text(partLabel(part))
                             .font(.caption)
                             .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.bordered)
