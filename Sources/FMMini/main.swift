@@ -802,8 +802,8 @@ struct WelcomeView: View {
                 }
             }
             .frame(maxWidth: 650)
-            Button("Aller plus loin → Compléter l’installation") {
-                openWindow(id: "installation")
+            Button("Aller plus loin → Étendre le modèle") {
+                openWindow(id: "extension")
             }
             .buttonStyle(.link)
             .font(.caption)
@@ -971,9 +971,10 @@ struct InstallationTool: Identifiable {
     let about: String
     let needed: String
     let unnecessary: String
+    let prerequisite: String
+    let tag: String?
     let statusKey: String?
     let url: String?
-    let tooltip: String?
 }
 
 enum InstallationAvailability {
@@ -987,10 +988,7 @@ final class InstallationModel: ObservableObject {
     @Published private(set) var statuses: [String: InstallationAvailability] = [:]
 
     init() {
-        Task { [weak self] in
-            let results = await InstallationChecker.checkAll()
-            self?.statuses = results
-        }
+        statuses = InstallationChecker.checkAll()
     }
 
     func status(for tool: InstallationTool) -> InstallationAvailability? {
@@ -1004,21 +1002,12 @@ final class InstallationModel: ObservableObject {
 }
 
 enum InstallationChecker {
-    static func checkAll() async -> [String: InstallationAvailability] {
-        async let lmServerActive = lmStudioServerActive()
+    static func checkAll() -> [String: InstallationAvailability] {
         let fileManager = FileManager.default
-        let lmStudioApp = fileManager.fileExists(atPath: "/Applications/LM Studio.app")
-        let lmServer = await lmServerActive
         return [
-            "fm": fileManager.fileExists(atPath: "/usr/bin/fm") ? .detected(nil) : .unavailable,
-            "shortcuts": .detected(nil),
-            "lmstudio": (lmStudioApp || lmServer) ? .detected(lmServer ? "serveur actif" : nil) : .unavailable,
-            "ollama": fileManager.fileExists(atPath: "/Applications/Ollama.app") ? .detected(nil) : .unavailable,
-            "homebrew": fileManager.fileExists(atPath: "/opt/homebrew/bin/brew") ? .detected(nil) : .unavailable,
             "apfel": commandSucceeds("/usr/bin/which", ["apfel"]) ? .detected(nil) : .unavailable,
-            "clt": commandSucceeds("/usr/bin/xcode-select", ["-p"]) ? .detected(nil) : .unavailable,
             "python-sdk": commandSucceeds("/usr/bin/env", ["python3", "-c", "import apple_fm_sdk"]) ? .detected(nil) : .unavailable,
-            "xcode": fileManager.fileExists(atPath: "/Applications/Xcode.app") ? .detected(nil) : .unavailable
+            "fm-serve": fileManager.fileExists(atPath: "/usr/bin/fm") ? .detected(nil) : .unavailable
         ]
     }
 
@@ -1044,44 +1033,19 @@ enum InstallationChecker {
         }
     }
 
-    private static func lmStudioServerActive() async -> Bool {
-        var request = URLRequest(url: URL(string: "http://localhost:1234/v1/models")!)
-        request.timeoutInterval = 0.5
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 0.5
-        configuration.timeoutIntervalForResource = 0.8
-        configuration.waitsForConnectivity = false
-        do {
-            let (_, response) = try await URLSession(configuration: configuration).data(for: request)
-            return (response as? HTTPURLResponse)?.statusCode == 200
-        } catch {
-            return false
-        }
-    }
 }
 
 enum InstallationActions {
     static func open(_ tool: InstallationTool) {
         switch tool.id {
-        case "fm", "homebrew", "apfel", "clt", "python-sdk":
+        case "fm-serve":
             openTerminal()
-        case "shortcuts":
-            openLocalApplication("/System/Applications/Shortcuts.app", fallbackURL: URL(string: "shortcuts://")!)
-        case "lmstudio":
-            openLocalApplication("/Applications/LM Studio.app", fallbackURL: URL(string: tool.url!)!)
-        case "ollama":
-            openLocalApplication("/Applications/Ollama.app", fallbackURL: URL(string: tool.url!)!)
-        case "xcode":
-            openLocalApplication("/Applications/Xcode.app", fallbackURL: URL(string: tool.url!)!)
         case "apple-docs":
             openURLs([
                 "https://developer.apple.com/documentation/foundationmodels",
-                "https://developer.apple.com/videos/play/wwdc2026/334/"
-            ])
-        case "mcp":
-            openURLs([
-                "https://github.com/airy10/AppleFoundationMCPTool",
-                "https://github.com/phimage/mcp-foundation-models"
+                "https://developer.apple.com/videos/play/wwdc2026/241/",
+                "https://developer.apple.com/videos/play/wwdc2026/334/",
+                "https://developer.apple.com/videos/play/wwdc2026/339/"
             ])
         default:
             if let url = tool.url.flatMap(URL.init(string:)) { NSWorkspace.shared.open(url) }
@@ -1097,15 +1061,6 @@ enum InstallationActions {
         }
     }
 
-    private static func openLocalApplication(_ path: String, fallbackURL: URL) {
-        let url = URL(fileURLWithPath: path)
-        if FileManager.default.fileExists(atPath: path) {
-            NSWorkspace.shared.open(url)
-        } else {
-            NSWorkspace.shared.open(fallbackURL)
-        }
-    }
-
     private static func openURLs(_ values: [String]) {
         for value in values {
             if let url = URL(string: value) { NSWorkspace.shared.open(url) }
@@ -1117,31 +1072,29 @@ struct InstallationView: View {
     @Local private var model = InstallationModel()
 
     private let sections: [InstallationSection] = [
-        InstallationSection(title: "Déjà sur votre Mac, rien à installer", tools: [
-            InstallationTool(id: "fm", name: "fm (dans le Terminal)", about: "parler au même modèle qu'ici en tapant des commandes, et l'enchaîner avec d'autres outils.", needed: "vous aimez le Terminal, ou si vous voulez traiter des fichiers en série (résumer dix textes d'un coup, par exemple).", unnecessary: "vous êtes satisfait de cette fenêtre. FM Mini fait la même chose, en cliquant.", statusKey: "fm", url: nil, tooltip: nil),
-            InstallationTool(id: "shortcuts", name: "Raccourcis → « Utiliser le modèle »", about: "ajouter le modèle à des automatisations sans écrire de code, par exemple un clic droit sur un fichier pour le résumer.", needed: "vous répétez souvent la même tâche sur des fichiers ou des textes.", unnecessary: "vous posez des questions ponctuelles : cette fenêtre suffit.", statusKey: "shortcuts", url: nil, tooltip: nil)
+        InstallationSection(title: "Les briques officielles d’Apple", tools: [
+            InstallationTool(id: "utilities", name: "Foundation Models utilities", about: "les compléments officiels du framework : gérer les longues conversations (résumé, fenêtre glissante), définir des « compétences » que le modèle active à la demande, et parler à n’importe quel serveur de modèle compatible OpenAI avec le même code.", needed: "vous développez une app en Swift avec le modèle et que vos conversations dépassent la fenêtre de contexte, ou si vous voulez brancher un autre modèle sans changer votre code.", unnecessary: "vous n’écrivez pas de Swift.", prerequisite: "Swift, Xcode conseillé", tag: "paquet Swift", statusKey: nil, url: "https://github.com/apple/foundation-models-utilities"),
+            InstallationTool(id: "python-sdk", name: "SDK Python Apple (apple-fm-sdk)", about: "piloter le modèle depuis Python : lui donner des outils (fonctions Python), obtenir des sorties structurées, et surtout mesurer ses réponses sur des séries de tests.", needed: "vous écrivez des scripts Python, ou si vous voulez vérifier sérieusement ce que le modèle réussit et rate avant de vous y fier.", unnecessary: "vous ne programmez pas.", prerequisite: "Python 3.10+, Command Line Tools", tag: nil, statusKey: "python-sdk", url: "https://github.com/apple/python-apple-fm-sdk"),
+            InstallationTool(id: "apple-docs", name: "Documentation et sessions WWDC26", about: "la référence officielle, et trois vidéos de vingt minutes : les nouveautés du framework, la ligne de commande et Python, et comment brancher un autre modèle.", needed: "vous voulez comprendre ce qui se passe sous le capot avant d’aller plus loin.", unnecessary: "vous voulez seulement vous servir de l’app.", prerequisite: "aucun", tag: "documentation", statusKey: nil, url: "https://developer.apple.com/documentation/foundationmodels")
         ]),
-        InstallationSection(title: "Sans programmer", tools: [
-            InstallationTool(id: "lmstudio", name: "LM Studio", about: "faire tourner d'autres modèles sur votre Mac, plus gros et plus cultivés que celui d'Apple, que fm peut ensuite utiliser.", needed: "le modèle Apple vous répond trop souvent « je ne sais pas », et si votre Mac a au moins 16 Go de mémoire (32 Go pour les modèles vraiment plus forts).", unnecessary: "vous travaillez surtout sur vos propres textes : le modèle Apple est plus rapide et déjà là.", statusKey: "lmstudio", url: "https://lmstudio.ai", tooltip: nil),
-            InstallationTool(id: "ollama", name: "Ollama", about: "la même chose que LM Studio, en plus sobre, piloté depuis le Terminal.", needed: "vous préférez le Terminal aux fenêtres, ou si LM Studio ne vous convient pas.", unnecessary: "vous avez déjà LM Studio : l'un ou l'autre, pas les deux.", statusKey: "ollama", url: "https://ollama.com", tooltip: nil),
-            InstallationTool(id: "homebrew", name: "Homebrew", about: "installer des outils du Terminal en une ligne. C'est un prérequis, pas un outil en soi.", needed: "vous voulez installer apfel, ou tout autre outil « brew install … ».", unnecessary: "vous n'installez rien de la liste ci-dessous.", statusKey: "homebrew", url: "https://brew.sh", tooltip: nil),
-            InstallationTool(id: "apfel", name: "apfel", about: "le modèle Apple comme outil du Terminal avec quelques fonctions que fm n'a pas (connexion à des outils externes MCP, scripts tout prêts).", needed: "vous êtes sur macOS 26 (où fm n'existe pas), ou si vous voulez brancher le modèle sur des outils MCP.", unnecessary: "vous êtes sur macOS 27 et que fm vous suffit.", statusKey: "apfel", url: "https://github.com/Arthur-Ficial/apfel", tooltip: nil)
+        InstallationSection(title: "Donner des outils au modèle (serveurs MCP → modèle Apple)", tools: [
+            InstallationTool(id: "swift-mcp", name: "SwiftMCP", about: "connecter le modèle Apple à n’importe quel serveur MCP en trois lignes de Swift : chaque outil du serveur devient un outil que le modèle peut appeler.", needed: "vous développez une app Swift et vous avez déjà des serveurs MCP (fichiers, calendrier, bases de données…).", unnecessary: "vous ne développez pas en Swift.", prerequisite: "Swift", tag: "paquet Swift", statusKey: nil, url: "https://swiftpackageindex.com/keywords/apple-intelligence"),
+            InstallationTool(id: "apple-foundation-mcp-tool", name: "AppleFoundationMCPTool", about: "la même idée, avec découverte automatique des outils d’un serveur MCP (local ou distant) au lancement.", needed: "vos serveurs MCP changent souvent et que vous ne voulez pas les décrire à la main.", unnecessary: "SwiftMCP vous suffit — l’un ou l’autre.", prerequisite: "Swift", tag: "paquet Swift", statusKey: nil, url: "https://github.com/airy10/AppleFoundationMCPTool"),
+            InstallationTool(id: "apfel", name: "apfel + apfel-run", about: "le modèle Apple en outil du Terminal, avec branchement de serveurs MCP par un simple fichier de configuration — sans écrire de code.", needed: "vous voulez essayer « le modèle + des outils MCP » depuis le Terminal avant d’écrire une app, ou si vous êtes encore sur macOS 26.", unnecessary: "vous ne vous servez pas du Terminal.", prerequisite: "Homebrew", tag: nil, statusKey: "apfel", url: "https://github.com/Arthur-Ficial/apfel")
         ]),
-        InstallationSection(title: "Avec Python", tools: [
-            InstallationTool(id: "clt", name: "Command Line Tools d'Apple", about: "les outils de base pour compiler et pour Python. Vous les avez déjà si FM Mini a été construit sur ce Mac.", needed: "vous voulez utiliser quoi que ce soit de cette section ou de la suivante.", unnecessary: "vous ne programmez pas.", statusKey: "clt", url: nil, tooltip: "xcode-select --install"),
-            InstallationTool(id: "python-sdk", name: "SDK Python Apple (apple-fm-sdk)", about: "piloter le modèle depuis Python, lui donner des outils (calendrier, fichiers, base de données) et mesurer ses réponses sur des séries de tests.", needed: "vous écrivez des scripts Python, ou si vous voulez vérifier sérieusement ce que le modèle réussit et rate.", unnecessary: "vous ne programmez pas.", statusKey: "python-sdk", url: "https://github.com/apple/python-apple-fm-sdk", tooltip: nil),
-            InstallationTool(id: "apple-docs", name: "Documentation Apple et vidéo de présentation", about: "la référence officielle du framework, et vingt minutes de vidéo qui montrent fm et le SDK Python.", needed: "vous voulez comprendre ce qui se passe sous le capot avant d'aller plus loin.", unnecessary: "vous voulez seulement vous servir de l'app.", statusKey: nil, url: "https://developer.apple.com/documentation/foundationmodels", tooltip: nil)
-        ]),
-        InstallationSection(title: "Pour développer des applications", tools: [
-            InstallationTool(id: "xcode", name: "Xcode", about: "l'atelier complet d'Apple. Indispensable pour certaines fonctions du langage Swift et pour signer une app que vous distribuez.", needed: "vous voulez écrire vos propres apps utilisant le modèle, ou en distribuer. Comptez 15 Go.", unnecessary: "vous utilisez des apps déjà construites, comme celle-ci.", statusKey: "xcode", url: "https://apps.apple.com/app/xcode/id497799835", tooltip: nil),
-            InstallationTool(id: "utilities", name: "Foundation Models utilities (Apple, open source)", about: "des briques officielles pour les développeurs : gérer de longues conversations, définir des « compétences », se connecter à n'importe quel serveur de modèle compatible OpenAI.", needed: "vous développez en Swift avec le modèle.", unnecessary: "vous ne développez pas.", statusKey: nil, url: "https://github.com/apple/foundation-models-utilities", tooltip: nil),
-            InstallationTool(id: "mcp", name: "Ponts MCP", about: "relier le modèle à des outils externes (dans un sens) ou le mettre à disposition d'autres assistants comme outil (dans l'autre).", needed: "vous utilisez déjà des serveurs MCP et savez ce que c'est.", unnecessary: "cette phrase ne vous dit rien — c'est normal, et ça ne vous manquera pas.", statusKey: nil, url: "https://github.com/airy10/AppleFoundationMCPTool", tooltip: nil)
+        InstallationSection(title: "Mettre le modèle au service d’autres assistants (modèle Apple → serveur MCP)", tools: [
+            InstallationTool(id: "mcp-foundation-models", name: "mcp-foundation-models", about: "exposer le modèle Apple comme un serveur MCP, pour que Claude Desktop, Claude Code ou tout autre assistant compatible puisse lui déléguer des tâches locales, gratuites et privées : résumer, extraire, classer.", needed: "vous utilisez déjà un assistant qui parle MCP et que vous voulez garder certains traitements sur votre Mac.", unnecessary: "vous n’utilisez pas ces assistants.", prerequisite: "Swift pour le compiler", tag: "outil Terminal", statusKey: nil, url: "https://github.com/phimage/mcp-foundation-models"),
+            InstallationTool(id: "fm-serve", name: "fm serve (déjà sur votre Mac)", about: "la variante sans MCP — `fm serve` ouvre une porte compatible OpenAI sur http://127.0.0.1:1976, que beaucoup de logiciels savent utiliser (éditeurs, outils de notes) ; à lancer depuis l’application Terminal.", needed: "un de vos logiciels propose « serveur compatible OpenAI » dans ses réglages.", unnecessary: "vous dialoguez seulement ici.", prerequisite: "Terminal", tag: "outil Terminal", statusKey: "fm-serve", url: nil)
         ])
     ]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                Text("Le modèle Apple sait lire et écrire. Pour qu’il agisse — lire un fichier, consulter un calendrier, interroger une base — il faut lui donner des outils ; MCP (Model Context Protocol) est la façon standard de les brancher, dans un sens comme dans l’autre.")
+                    .font(.callout)
+                    .foregroundStyle(Color(red: 0.28, green: 0.28, blue: 0.30))
+                    .fixedSize(horizontal: false, vertical: true)
                 ForEach(sections) { section in
                     VStack(alignment: .leading, spacing: 9) {
                         Text(section.title).font(.headline)
@@ -1182,6 +1135,14 @@ struct InstallationToolCard: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                if let tag = tool.tag {
+                    Text(tag)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.gray.opacity(0.12), in: Capsule())
+                }
                 Spacer()
             }
             Text("À quoi ça sert : \(tool.about)")
@@ -1192,9 +1153,11 @@ struct InstallationToolCard: View {
             Label("Inutile si… \(tool.unnecessary)", systemImage: "circle.fill")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Text("Prérequis : \(tool.prerequisite)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             Button("Ouvrir", action: open)
                 .controlSize(.small)
-                .help(tool.tooltip ?? "")
         }
         .padding(12)
         .background(Color.gray.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
@@ -1343,7 +1306,7 @@ struct FMMiniApp: App {
         .defaultSize(width: 460, height: 760)
         .windowResizability(.contentMinSize)
 
-        Window("Compléter l’installation", id: "installation") {
+        Window("Étendre le modèle", id: "extension") {
             InstallationView()
                 .preferredColorScheme(.light)
         }
@@ -1360,8 +1323,8 @@ struct InstallationCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .help) {
-            Button("Compléter l’installation…") {
-                openWindow(id: "installation")
+            Button("Étendre le modèle…") {
+                openWindow(id: "extension")
             }
         }
     }
