@@ -1011,7 +1011,6 @@ struct InstallationTool: Identifiable {
 }
 
 enum InstallationAvailability {
-    case checking
     case detected(String?)
     case unavailable
 }
@@ -1020,13 +1019,13 @@ enum InstallationAvailability {
 final class InstallationModel: ObservableObject {
     @Published private(set) var statuses: [String: InstallationAvailability] = [:]
 
-    init() {
+    func checkAll() {
         statuses = InstallationChecker.checkAll()
     }
 
     func status(for tool: InstallationTool) -> InstallationAvailability? {
         guard let key = tool.statusKey else { return nil }
-        return statuses[key] ?? .checking
+        return statuses[key]
     }
 
     func open(_ tool: InstallationTool) {
@@ -1148,6 +1147,7 @@ struct InstallationView: View {
             .padding(20)
         }
         .background(Color.white)
+        .task { model.checkAll() }
     }
 }
 
@@ -1204,7 +1204,6 @@ struct InstallationToolCard: View {
 
     private func statusText(_ status: InstallationAvailability) -> String {
         switch status {
-        case .checking: return "vérification…"
         case .detected(let detail): return detail ?? "détecté"
         case .unavailable: return "non détecté"
         }
