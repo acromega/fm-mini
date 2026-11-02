@@ -1658,7 +1658,15 @@ enum AutoTest {
             } catch AttachmentReadError.tooLarge(let bytes) {
                 overLimit = bytes == 5_100_000
             }
-            let ok = !docx.isEmpty && scanResult && !underLimit.isEmpty && overLimit
+            let emptyFileRefused: Bool
+            do {
+                _ = try AttachmentReader.read(url: fixtures.appendingPathComponent("vide.txt"))
+                emptyFileRefused = false
+            } catch AttachmentReadError.emptyFile {
+                emptyFileRefused = true
+            }
+            reporter.emit("AUTOTEST vide.txt : \(emptyFileRefused ? "OK — Ce fichier est vide." : "ÉCHEC")")
+            let ok = !docx.isEmpty && scanResult && !underLimit.isEmpty && overLimit && emptyFileRefused
             reporter.emit("AUTOTEST fichiers DOCX/PDF/scan/5 Mo : \(ok ? "OK" : "ÉCHEC")")
             return ok
         } catch {
