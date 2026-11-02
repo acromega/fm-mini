@@ -481,7 +481,7 @@ final class ChatModel: ObservableObject {
         let words = wordCount.formatted(.number.locale(Locale(identifier: "fr_FR")))
         let tokens = attachment.tokenCount.formatted(.number.locale(Locale(identifier: "fr_FR")))
         let visibleCapacity = capacity.formatted(.number.locale(Locale(identifier: "fr_FR")))
-        let text = "Ce document fait \(words) mots (\(tokens) jetons). Je ne peux lire qu’environ \(visibleCapacity) mots à la fois — c’est la limite de mémoire du modèle, pas un bogue. Je l’ai découpé en \(parts.count) parties ; choisissez celle que vous voulez charger, ou posez votre question partie par partie."
+        let text = "Ce document fait \(words) mots (\(tokens) jetons). Je ne peux lire qu’environ \(visibleCapacity) mots à la fois — c’est la limite de mémoire du modèle, pas un bogue. Je l’ai découpé en \(parts.count) parties ; choisissez celle à charger, ou posez votre question partie par partie."
         messages.removeAll { item in
             if case .some(.oversizedDocument) = item.action { return true }
             return false
