@@ -228,6 +228,27 @@ enum BubbleClipboard {
     }
 }
 
+struct PasteboardSnapshot {
+    private let items: [NSPasteboardItem]
+
+    init() {
+        let board = NSPasteboard.general
+        items = (board.pasteboardItems ?? []).map { source in
+            let copy = NSPasteboardItem()
+            for type in source.types {
+                if let data = source.data(forType: type) { copy.setData(data, forType: type) }
+            }
+            return copy
+        }
+    }
+
+    func restore() {
+        let board = NSPasteboard.general
+        board.clearContents()
+        if !items.isEmpty { board.writeObjects(items) }
+    }
+}
+
 enum AttachmentReadError: Error {
     case tooLarge(Int)
     case emptyFile
@@ -1462,11 +1483,19 @@ final class AutoTestReporter {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         let filename = "autotest-\(formatter.string(from: Date())).txt"
-        let url = FileManager.default.homeDirectoryForCurrentUser
+        let preferredDirectory = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("fm-mini", isDirectory: true)
-            .appendingPathComponent(filename)
+        let fileManager = FileManager.default
+        let hasPreferredDirectory = fileManager.fileExists(atPath: preferredDirectory.path)
+        let directory = hasPreferredDirectory ? preferredDirectory : URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+        let url = directory.appendingPathComponent(filename)
         FileManager.default.createFile(atPath: url.path, contents: nil)
         report = try? FileHandle(forWritingTo: url)
+        if !hasPreferredDirectory {
+            let data = Data("Rapport d’autotest : \(url.path)\n".utf8)
+            FileHandle.standardOutput.write(data)
+            fflush(stdout)
+        }
     }
 
     func emit(_ line: String) {
@@ -1491,6 +1520,8 @@ enum AutoTest {
             reporter.emit("AUTOTEST 1: ÉCHEC — modèle indisponible : \(model.availability)")
             return 1
         }
+        let pasteboardSnapshot = PasteboardSnapshot()
+        defer { pasteboardSnapshot.restore() }
         do {
             let normalSession = LanguageModelSession(instructions: ChatModel.instructions)
             let normalStart = Date()
