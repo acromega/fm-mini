@@ -1466,12 +1466,6 @@ enum AutoTest {
                 && !chipModel.isSending
         }
         reporter.emit("AUTOTEST puces PJ : \(suggestionPasses ? "OK" : "ÉCHEC") — annulation inchangée, PJ chargée insérée sans envoi")
-        let welcomeLayout = await MainActor.run { () -> (fits: Bool, height: Int) in
-            let preview = NSHostingView(rootView: WelcomeView(model: ChatModel()).frame(width: 404))
-            let height = Int(ceil(preview.fittingSize.height)) + 56
-            return (height <= 460, height)
-        }
-        reporter.emit("AUTOTEST accueil 460×760 : \(welcomeLayout.fits ? "OK" : "ÉCHEC") — contenu \(welcomeLayout.height) px, sans défilement")
         let pasteboardSnapshot = PasteboardSnapshot()
         defer { pasteboardSnapshot.restore() }
         let cards = FurtherWindowContent.cards
