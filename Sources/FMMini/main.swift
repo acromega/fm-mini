@@ -59,6 +59,12 @@ struct DocumentPart: Identifiable {
     let preview: String
 }
 
+struct TranslationLanguage: Identifiable {
+    let code: String
+    let name: String
+    var id: String { code }
+}
+
 enum DocumentSplitter {
     static func wordCount(_ text: String) -> Int {
         text.split(whereSeparator: { $0.isWhitespace }).count
@@ -288,6 +294,15 @@ final class ChatModel: ObservableObject {
 
     var documentPartCapacity: Int {
         max(1, Int(Double(contextSize) * 0.6 / 1.4))
+    }
+
+    var translationLanguages: [TranslationLanguage] {
+        let french = Locale(identifier: "fr_FR")
+        let codes = Set(model.supportedLanguages.compactMap { $0.languageCode?.identifier.lowercased() })
+        return codes.map { code in
+            TranslationLanguage(code: code, name: french.localizedString(forLanguageCode: code) ?? code)
+        }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     func setInput(_ value: String) {
@@ -744,7 +759,7 @@ struct WelcomeView: View {
                 ForEach(suggestions, id: \.self) { suggestion in
                     SuggestionChip(title: suggestion) { model.setInput(suggestion) }
                 }
-                TranslationMenu { language in model.setInput("Traduis en \(language) : ") }
+                TranslationMenu(languages: model.translationLanguages) { language in model.setInput("Traduis en \(language.name) : ") }
                 SuggestionChip(title: "Joindre un document et en lister les points importants") {
                     model.chooseFile(questionAfterSelection: "Liste les points importants de ce document.")
                 }
@@ -767,13 +782,17 @@ struct SuggestionChip: View {
 }
 
 struct TranslationMenu: View {
-    let select: (String) -> Void
-    private let languages = ["anglais", "espagnol", "italien", "allemand", "portugais", "japonais", "chinois"]
+    let languages: [TranslationLanguage]
+    let select: (TranslationLanguage) -> Void
 
     var body: some View {
         Menu {
-            ForEach(languages, id: \.self) { language in
-                Button(language.capitalized) { select(language) }
+            if languages.isEmpty {
+                Text("Aucune langue disponible")
+            } else {
+                ForEach(languages) { language in
+                    Button(language.name.localizedCapitalized) { select(language) }
+                }
             }
         } label: {
             HStack(spacing: 4) {
@@ -1215,8 +1234,9 @@ enum AutoTest {
             turns.append(ConversationTurn(question: prompt, answer: response.content))
         }
         let before = try await model.tokenCount(for: session.transcript)
-        let summaryRequest = "Résume en moins de 200 mots les questions posées et les réponses données, en gardant les faits, chiffres et noms exacts. Ne résume pas le document lui-même. Ne résume pas les deux derniers échanges."
-        let summary = try await session.respond(to: summaryRequest, options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 300)).content
+        let summaryRequest = "Résume en moins de 200 mots les questions posées et les réponses données, en gardant les faits, chiffres et noms exacts. Ne résume pas le document lui-même."
+        let summarySource = compressionSourceSession(turns: Array(turns.dropLast(2)))
+        let summary = try await summarySource.respond(to: summaryRequest, options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 300)).content
         let compressed = compressionSession(document: document, summary: summary, recentTurns: Array(turns.suffix(2)))
         let after = try await model.tokenCount(for: compressed.transcript)
         session = compressed
@@ -1237,6 +1257,20 @@ enum AutoTest {
         let summaryResponse = Transcript.Response(segments: [.text(Transcript.TextSegment(content: summary))])
         var entries: [Transcript.Entry] = [.instructions(instruction), .prompt(documentPrompt), .response(documentResponse), .prompt(summaryPrompt), .response(summaryResponse)]
         for turn in recentTurns {
+            entries += [
+                .prompt(Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: turn.question))])),
+                .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: turn.answer))]))
+            ]
+        }
+        return LanguageModelSession(transcript: Transcript(entries: entries))
+    }
+
+    private static func compressionSourceSession(turns: [ConversationTurn]) -> LanguageModelSession {
+        let instruction = Transcript.Instructions(
+            segments: [.text(Transcript.TextSegment(content: ChatModel.instructions))], toolDefinitions: []
+        )
+        var entries: [Transcript.Entry] = [.instructions(instruction)]
+        for turn in turns {
             entries += [
                 .prompt(Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: turn.question))])),
                 .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: turn.answer))]))

@@ -31,7 +31,11 @@ Un fichier ne peut pas dépasser 5 Mo. Le modèle a aussi une fenêtre de contex
 
 ## Langues
 
-Le modèle comprend : fr, fr-CA, en ×4, es ×3, pt ×2, zh ×3, de, it, ja, ko, nl, da, nb, sv, tr, vi. Le français est la seule langue mesurée durant les vérifications de FM Mini.
+Les 24 langues prises en charge sont : fr, fr-CA, en ×4, es ×3, pt ×2, zh ×3, de, it, ja, ko, nl, da, nb, sv, tr, vi. Vers une langue hors liste, le modèle produit du texte mais sans aucune garantie (constaté : arabe très correct, thaï trompeur) ; seule la qualité du français a été mesurée.
+
+## Ce qu’il ne sait pas faire
+
+FM Mini ne sait pas compter, comparer, détecter une contradiction ou dire de façon fiable « le texte ne le dit pas » : il restitue, il ne vérifie pas.
 
 ## Dépannage
 
