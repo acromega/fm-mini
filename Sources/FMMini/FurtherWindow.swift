@@ -14,45 +14,41 @@ struct FurtherCard: Identifiable {
     let title: String
     let benefit: String
     let data: String
+    let note: String?
     let action: FurtherAction
 }
 
 enum FurtherWindowContent {
-    static let imageRequest = #"""
-Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute la reconnaissance de texte : « Ajouter une PJ… » accepte aussi png, jpg, jpeg, heic, tiff, et les PDF sans texte ne sont plus refusés. Le texte est extrait sur le Mac avec Vision (RecognizeTextRequest, niveau précis, langues fr et en, détection automatique ; pour un PDF, chaque page rendue en image à 200 dpi puis reconnue, pages séparées par une ligne vide). Pendant le traitement : « Reconnaissance du texte… » avec indicateur d'activité ; le résultat devient le document joint, comme un .txt, badge « <nom> (texte reconnu, N jetons) ». Si rien n'est reconnu : « Aucun texte reconnu dans ce fichier. » Mets à jour la ligne « PJ acceptées », le message du PDF scanné, SPEC.md, README. Autotest : générer en mémoire une image contenant trois lignes de texte français et vérifier que le modèle en restitue un mot. Version : ajoute « + lecture d'images » à la version affichée. Un commit par étape, autotest depuis Terminal.app.
-"""#
-    static let webRequest = #"""
-Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Joindre une page web… » à côté de « Ajouter une PJ… » : une fenêtre demande une adresse http(s) ; FM Mini la télécharge (URLSession, 15 s, 5 Mo maximum), convertit le HTML en texte (NSAttributedString html → string, puis lignes vides réduites), et l'ajoute comme document nommé par le titre de la page, badge « <titre> (page web, N jetons) ». Le document trop long passe par le découpage existant. Erreurs en ligne : « Adresse injoignable. », « Cette page ne contient pas de texte lisible. ». Mets à jour SPEC.md (section PRIVACY : cette fonction est l'unique appel réseau, uniquement vers l'adresse saisie) et README. Autotest : vérifier que sans utiliser cette fonction aucun socket n'est ouvert (lsof), et que la fonction convertit un HTML construit en mémoire. Version : ajoute « + pages web ». Un commit par étape, autotest depuis Terminal.app.
-"""#
-    static let folderRequest = #"""
-Dans ~/fm-mini, lis POUR-LES-ASSISTANTS.md puis SPEC.md. Ajoute un bouton « Choisir un dossier… » : la session reçoit deux outils FoundationModels (protocole Tool) limités à ce dossier : listerFichiers() → noms et tailles des fichiers .txt .md .csv .json .rtf .docx .pdf (sous-dossiers compris, 200 au plus) ; lireFichier(nom) → texte du fichier par le lecteur existant, tronqué à 3 000 mots avec la mention « (suite coupée) ». Sans macro : les Arguments de chaque outil sont écrits à la main (ConvertibleFromGeneratedContent + GenerationSchema statique). Badge « dossier : <nom> (N fichiers) ». Consigne ajoutée pour la session avec dossier : « Pour répondre sur les fichiers, commence par listerFichiers, puis lis seulement ceux qui sont utiles. » Erreurs en ligne. Mets à jour SPEC.md et README. Autotest : dossier temporaire en mémoire impossible → créer trois fichiers dans un dossier sous $TMPDIR, poser une question dont la réponse est dans le deuxième, vérifier l'appel des deux outils, supprimer le dossier. Version : ajoute « + dossier ». Un commit par étape, autotest depuis Terminal.app.
-"""#
+    static func sections(_ langue: Langue) -> [FurtherSection] {
+        let t = langue.texte
+        let note: String? = nil
+        return [
+            FurtherSection(title: t(.sectionDejaSurMac), cards: [
+                FurtherCard(id: "dictation", title: t(.carteDicteeTitre), benefit: t(.carteDicteeApport), data: t(.donneesRestentSurMac), note: nil, action: .dictation),
+                FurtherCard(id: "shortcuts", title: t(.carteRaccourcisTitre), benefit: t(.carteRaccourcisApport), data: t(.donneesRestentSurMac), note: nil, action: .shortcuts),
+                FurtherCard(id: "terminal", title: t(.carteTerminalTitre), benefit: t(.carteTerminalApport), data: t(.donneesRestentSurMac), note: nil, action: .terminal)
+            ]),
+            FurtherSection(title: t(.sectionAAjouter), cards: [
+                FurtherCard(id: "images", title: t(.carteImagesTitre), benefit: t(.carteImagesApport), data: t(.donneesRestentSurMac), note: note, action: .copy(t(.demandeImages))),
+                FurtherCard(id: "web", title: t(.carteWebTitre), benefit: t(.carteWebApport), data: t(.carteWebDonnees), note: note, action: .copy(t(.demandeWeb))),
+                FurtherCard(id: "folder", title: t(.carteDossierTitre), benefit: t(.carteDossierApport), data: t(.donneesRestentSurMac), note: note, action: .copy(t(.demandeDossier)))
+            ])
+        ]
+    }
 
-    static let sections = [
-        FurtherSection(title: "Déjà sur votre Mac", cards: [
-            FurtherCard(id: "dictation", title: "Parler au lieu de taper", benefit: "dictez votre message dans la zone de saisie ; la dictée du Mac fonctionne dans FM Mini sans réglage particulier.", data: "restent sur le Mac.", action: .dictation),
-            FurtherCard(id: "shortcuts", title: "Automatiser avec Raccourcis", benefit: "l'action « Utiliser le modèle » de Raccourcis fait appel au même modèle que FM Mini : résumer chaque mail reçu, renommer les fichiers déposés dans un dossier, traduire une sélection — sans ouvrir FM Mini.", data: "restent sur le Mac.", action: .shortcuts),
-            FurtherCard(id: "terminal", title: "L'utiliser depuis le Terminal et d'autres apps", benefit: "la commande fm répond en ligne de commande (fm respond \"votre question\") ; fm serve ouvre une porte locale compatible OpenAI (127.0.0.1:1976) pour les apps qui savent parler à ChatGPT.", data: "restent sur le Mac.", action: .terminal)
-        ]),
-        FurtherSection(title: "À ajouter à FM Mini avec votre assistant", cards: [
-            FurtherCard(id: "images", title: "Lire des images et des scans", benefit: "joindre une photo, une capture d'écran ou un PDF scanné ; le texte est reconnu par le Mac puis donné au modèle.", data: "restent sur le Mac.", action: .copy(imageRequest)),
-            FurtherCard(id: "web", title: "Lire une page web", benefit: "collez l'adresse d'une page ; FM Mini en récupère le texte et l'ajoute comme document.", data: "l'adresse de la page est envoyée sur internet pour la télécharger — c'est la seule exception à « tout reste sur le Mac » ; le reste de la conversation ne sort pas.", action: .copy(webRequest)),
-            FurtherCard(id: "folder", title: "Interroger un dossier de documents", benefit: "choisissez un dossier ; le modèle peut lister ses fichiers texte et lire celui dont il a besoin pour répondre.", data: "restent sur le Mac.", action: .copy(folderRequest))
-        ])
-    ]
-
-    static var cards: [FurtherCard] { sections.flatMap(\.cards) }
+    static func cards(_ langue: Langue) -> [FurtherCard] { sections(langue).flatMap(\.cards) }
 }
 
 struct InstallationView: View {
+    @ObservedObject private var langues = Langues.shared
     @Local private var copiedCardID: String? = nil
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("FM Mini fait exprès peu de choses. Voici ce que vous pouvez lui faire faire en plus — soit avec ce que votre Mac a déjà, soit en demandant à votre assistant de programmation (Claude Code, Codex…) de l'ajouter : le bouton « Copier la demande » met dans le presse-papiers un texte prêt à coller.")
+                Text(langues.texte(.introAllerPlusLoin))
                     .font(.callout).foregroundStyle(Color(red: 0.28, green: 0.28, blue: 0.30)).fixedSize(horizontal: false, vertical: true)
-                ForEach(FurtherWindowContent.sections) { section in
+                ForEach(FurtherWindowContent.sections(langues.courante)) { section in
                     VStack(alignment: .leading, spacing: 9) {
                         Text(section.title).font(.headline)
                         ForEach(section.cards) { card in
@@ -60,7 +56,7 @@ struct InstallationView: View {
                         }
                     }
                 }
-                Text("Rien n'est installé ni téléchargé par cette fenêtre : elle ouvre des apps déjà présentes ou copie du texte.")
+                Text(langues.texte(.piedAllerPlusLoin))
                     .font(.caption).foregroundStyle(Personnalisation.grisTexteSecondaire).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(.top, 4)
             }.padding(20)
         }.background(Color.white)
@@ -80,25 +76,35 @@ struct InstallationView: View {
 }
 
 struct FurtherCardView: View {
+    @ObservedObject private var langues = Langues.shared
     let card: FurtherCard
     let copied: Bool
     let action: () -> Void
 
+    init(card: FurtherCard, copied: Bool, action: @escaping () -> Void) {
+        self.card = card
+        self.copied = copied
+        self.action = action
+    }
+
     private var buttonTitle: String {
-        if copied { return "Copié" }
+        if copied { return langues.texte(.copie) }
         switch card.action {
-        case .dictation: return "Ouvrir les réglages de la dictée"
-        case .shortcuts: return "Ouvrir Raccourcis"
-        case .terminal: return "Ouvrir le Terminal"
-        case .copy: return "Copier la demande"
+        case .dictation: return langues.texte(.ouvrirReglagesDictee)
+        case .shortcuts: return langues.texte(.ouvrirRaccourcis)
+        case .terminal: return langues.texte(.ouvrirTerminal)
+        case .copy: return langues.texte(.copierDemande)
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(card.title).font(.subheadline.weight(.bold))
-            Text("Ce que ça apporte : \(card.benefit)").font(.caption).fixedSize(horizontal: false, vertical: true)
-            Text("Vos données : \(card.data)").font(.caption).foregroundStyle(Personnalisation.grisTexteSecondaire).fixedSize(horizontal: false, vertical: true)
+            Text(langues.texte(.ceQueCaApporte, card.benefit)).font(.caption).fixedSize(horizontal: false, vertical: true)
+            Text(langues.texte(.vosDonnees, card.data)).font(.caption).foregroundStyle(Personnalisation.grisTexteSecondaire).fixedSize(horizontal: false, vertical: true)
+            if let note = card.note {
+                Text(note).font(.caption2).foregroundStyle(Personnalisation.grisTexteSecondaire)
+            }
             Button(buttonTitle, action: action).controlSize(.small)
         }
         .padding(12).frame(maxWidth: .infinity, alignment: .leading)

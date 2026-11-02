@@ -8,18 +8,21 @@ import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-private let frenchNumberLocale = Locale(identifier: "fr_FR")
-
-private func formattedNumber(_ value: Int) -> String {
-    value.formatted(.number.locale(frenchNumberLocale))
+@MainActor private func t(_ cle: Cle) -> String { Langues.shared.texte(cle) }
+@MainActor private func t(_ cle: Cle, _ arguments: CVarArg...) -> String {
+    String(format: Langues.shared.texte(cle), locale: Langues.shared.courante.locale, arguments: arguments)
 }
 
-private func tokenLabel(_ value: Int) -> String {
-    "\(formattedNumber(value)) \(value == 1 ? "jeton" : "jetons")"
+@MainActor private func formattedNumber(_ value: Int) -> String {
+    value.formatted(.number.locale(Langues.shared.courante.locale))
 }
 
-private func contextTokenLabel(_ value: Int, outOf maximum: Int) -> String {
-    "\(formattedNumber(value)) / \(formattedNumber(maximum)) \(value == 1 ? "jeton" : "jetons")"
+@MainActor private func tokenLabel(_ value: Int) -> String {
+    "\(formattedNumber(value)) \(t(value == 1 ? .jeton : .jetons))"
+}
+
+@MainActor private func contextTokenLabel(_ value: Int, outOf maximum: Int) -> String {
+    "\(formattedNumber(value)) / \(formattedNumber(maximum)) \(t(value == 1 ? .jeton : .jetons))"
 }
 
 @propertyWrapper
@@ -293,7 +296,8 @@ enum AttachmentReader {
 
 @MainActor
 final class ChatModel: ObservableObject {
-    nonisolated static let instructions = Personnalisation.consigneModele
+    nonisolated static func instructions(for langue: Langue) -> String { langue.texte(.consigneModele) }
+    var instructions: String { t(.consigneModele) }
 
     @Published var messages: [ChatItem] = []
     @Published var input = ""
@@ -321,7 +325,7 @@ final class ChatModel: ObservableObject {
         case .unavailable(let reason):
             unavailableReason = String(describing: reason)
         @unknown default:
-            unavailableReason = "Raison inconnue"
+            unavailableReason = t(.raisonInconnue)
         }
         Task { @MainActor [weak self] in await self?.refreshContextGauge() }
     }
@@ -372,8 +376,8 @@ final class ChatModel: ObservableObject {
 
     var attachmentHint: String {
         let approximateWords = Int((Double(model.contextSize) * 0.9 / 1.4 / 100).rounded() * 100)
-        let display = approximateWords > 0 ? approximateWords.formatted(.number.locale(Locale(identifier: "fr_FR"))) : "?"
-        return String(format: Personnalisation.aidePJ, display)
+        let display = approximateWords > 0 ? formattedNumber(approximateWords) : "?"
+        return t(.aidePJ, display)
     }
 
     var contextSize: Int { model.contextSize }
@@ -392,10 +396,10 @@ final class ChatModel: ObservableObject {
     }
 
     var translationLanguages: [TranslationLanguage] {
-        let french = Locale(identifier: "fr_FR")
+        let locale = Langues.shared.courante.locale
         let codes = Set(model.supportedLanguages.compactMap { $0.languageCode?.identifier.lowercased() })
         return codes.map { code in
-            TranslationLanguage(code: code, name: french.localizedString(forLanguageCode: code) ?? code)
+            TranslationLanguage(code: code, name: locale.localizedString(forLanguageCode: code) ?? code)
         }
         .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
@@ -424,7 +428,7 @@ final class ChatModel: ObservableObject {
         panel.allowsMultipleSelection = false
         let fileTypes: [UTType] = AttachmentReader.allowedExtensions.compactMap { UTType(filenameExtension: $0) }
         panel.allowedContentTypes = fileTypes
-        panel.message = "Choisissez un document texte"
+        panel.message = t(.choisirDocument)
         guard panel.runModal() == .OK, let url = panel.url else {
             if let questionAfterSelection {
                 let nextInput = Self.inputAfterAttachmentSuggestion(currentInput: input, suggestion: questionAfterSelection, fileWasAccepted: false)
@@ -469,9 +473,9 @@ final class ChatModel: ObservableObject {
             defer { self.endDocumentAnalysis() }
             do {
                 let tokens = try await model.tokenCount(for: part.content)
-                let instructionTokens = try await model.tokenCount(for: Self.instructions)
+                let instructionTokens = try await model.tokenCount(for: instructions)
                 guard instructionTokens + tokens <= Int(Double(contextSize) * 0.9) else {
-                    messages.append(ChatItem(role: .error, text: "Cette partie reste trop longue pour la fenêtre du modèle.", durationMilliseconds: nil))
+                    messages.append(ChatItem(role: .error, text: t(.partieTropLongue), durationMilliseconds: nil))
                     return
                 }
                 let hadConversation = !turns.isEmpty || attachment?.isLoaded == true
@@ -479,8 +483,8 @@ final class ChatModel: ObservableObject {
                     if case .some(.oversizedDocument) = item.action { return true }
                     return false
                 }
-                let sourceName = oversizedDocumentName ?? "document"
-                let displayName = "\(sourceName) — partie \(part.id)/\(part.total)"
+                let sourceName = oversizedDocumentName ?? t(.documentSansNom)
+                let displayName = t(.nomPartie, sourceName, String(part.id), String(part.total))
                 attachment = TextAttachment(name: displayName, content: part.content, tokenCount: tokens)
                 session = newSession()
                 turns = []
@@ -488,7 +492,7 @@ final class ChatModel: ObservableObject {
                 compressionFailed = false
                 messages = card.map { [$0] } ?? []
                 if hadConversation {
-                    messages.append(ChatItem(role: .system, text: "Nouvelle partie chargée : la conversation a été réinitialisée.", durationMilliseconds: nil))
+                    messages.append(ChatItem(role: .system, text: t(.nouvellePartieChargee), durationMilliseconds: nil))
                 }
                 await refreshContextGauge()
             } catch {
@@ -503,7 +507,7 @@ final class ChatModel: ObservableObject {
         let sentText: String
         let injectsAttachment = attachment?.isPendingInjection == true
         if let attachment, injectsAttachment {
-            sentText = "Réponds uniquement à partir du document ci-dessous.\n\nDocument « \(attachment.name) » :\n\(attachment.content)\n\nQuestion : \(question)"
+            sentText = documentPrompt(attachment, question: question)
         } else {
             sentText = question
         }
@@ -516,13 +520,13 @@ final class ChatModel: ObservableObject {
                 try Task.checkCancellation()
                 let contextSize = self.model.contextSize
                 guard contextSize > 0 else {
-                    self.messages.append(ChatItem(role: .error, text: "Impossible de connaître la fenêtre de contexte du modèle.", durationMilliseconds: nil))
+                    self.messages.append(ChatItem(role: .error, text: t(.fenetreContexteInconnue), durationMilliseconds: nil))
                     self.input = question
                     self.isSending = false
                     return
                 }
                 if let attachment, injectsAttachment {
-                    let instructionTokens = try await self.model.tokenCount(for: Self.instructions)
+                    let instructionTokens = try await self.model.tokenCount(for: self.instructions)
                     let fileTokens = try await self.model.tokenCount(for: self.documentPrompt(attachment, question: ""))
                     let fileOnlyTotal = instructionTokens + fileTokens
                     guard fileOnlyTotal <= Int(Double(contextSize) * 0.9) else {
@@ -536,7 +540,7 @@ final class ChatModel: ObservableObject {
                 let messageTokens = try await self.model.tokenCount(for: sentText)
                 let totalTokens = transcriptTokens + messageTokens
                 guard totalTokens <= Int(Double(contextSize) * 0.9) else {
-                    self.messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(contextTokenLabel(totalTokens, outOf: contextSize))).", durationMilliseconds: nil, action: .conversationFull))
+                    self.messages.append(ChatItem(role: .error, text: t(.conversationPleine, contextTokenLabel(totalTokens, outOf: contextSize)), durationMilliseconds: nil, action: .conversationFull))
                     self.input = question
                     self.isSending = false
                     return
@@ -587,11 +591,11 @@ final class ChatModel: ObservableObject {
         if let modelError = error as? LanguageModelError {
             switch modelError {
             case .guardrailViolation:
-                return "Les garde-fous d’Apple ont bloqué cette réponse."
+                return t(.gardeFous)
             case .contextSizeExceeded:
-                return "La conversation est trop longue pour le modèle : cliquez sur Nouvelle conversation."
+                return t(.conversationTropLongue)
             case .unsupportedLanguageOrLocale:
-                return "Langue non prise en charge."
+                return t(.langueNonPriseEnCharge)
             case .rateLimited(_), .refusal(_), .unsupportedCapability(_), .unsupportedTranscriptContent(_), .unsupportedGenerationGuide(_), .timeout(_):
                 return modelError.localizedDescription
             @unknown default:
@@ -605,16 +609,16 @@ final class ChatModel: ObservableObject {
         switch error {
         case .tooLarge(let bytes):
             let megabytes = Double(bytes) / 1_000_000
-            let value = String(format: "%.1f", megabytes).replacingOccurrences(of: ".", with: ",")
-            return "Fichier trop lourd (\(value) Mo, maximum 5 Mo)"
+            let value = String(format: "%.1f", locale: Langues.shared.courante.locale, megabytes)
+            return t(.fichierTropLourd, value)
         case .emptyFile:
-            return "Ce fichier est vide."
+            return t(.fichierVide)
         case .scannedPDF:
-            return "Ce PDF ne contient pas de texte lisible (scan) : il faudrait d’abord le passer par la reconnaissance de texte."
+            return t(.pdfSansTexte)
         case .unreadableText:
-            return "Le fichier doit être du texte UTF-8 lisible."
+            return t(.texteNonUTF8)
         case .damagedDocument:
-            return "Ce fichier est illisible (document endommagé ?)."
+            return t(.documentEndommage)
         }
     }
 
@@ -625,7 +629,7 @@ final class ChatModel: ObservableObject {
     }
 
     private func documentPrompt(_ attachment: TextAttachment, question: String) -> String {
-        "Réponds uniquement à partir du document ci-dessous.\n\nDocument « \(attachment.name) » :\n\(attachment.content)\n\nQuestion : \(question)"
+        t(.promptDocument, attachment.name, attachment.content, question)
     }
 
     private func beginDocumentAnalysis() {
@@ -654,7 +658,7 @@ final class ChatModel: ObservableObject {
         }.value
         let words = formattedNumber(wordCount)
         let visibleCapacity = formattedNumber(capacity)
-        let text = "Ce document fait \(words) mots (\(tokenLabel(attachment.tokenCount)). Je ne peux lire qu’environ \(visibleCapacity) mots à la fois — c’est la limite de mémoire du modèle, pas un bogue. Je l’ai découpé en \(parts.count) parties ; choisissez celle à charger, ou posez votre question partie par partie."
+        let text = t(.documentDecoupe, words, tokenLabel(attachment.tokenCount), visibleCapacity, formattedNumber(parts.count))
         messages.removeAll { item in
             if case .some(.oversizedDocument) = item.action { return true }
             return false
@@ -665,14 +669,14 @@ final class ChatModel: ObservableObject {
     }
 
     private func newSession(withLoadedDocument attachment: TextAttachment? = nil) -> LanguageModelSession {
-        guard let attachment else { return LanguageModelSession(instructions: Self.instructions) }
+        guard let attachment else { return LanguageModelSession(instructions: instructions) }
         let instructionEntry = Transcript.Instructions(
-            segments: [.text(Transcript.TextSegment(content: Self.instructions))], toolDefinitions: []
+            segments: [.text(Transcript.TextSegment(content: instructions))], toolDefinitions: []
         )
         let documentEntry = Transcript.Prompt(
             segments: [.text(Transcript.TextSegment(content: documentPrompt(attachment, question: "")))]
         )
-        let documentResponse = Transcript.Response(segments: [.text(Transcript.TextSegment(content: "Document chargé."))])
+        let documentResponse = Transcript.Response(segments: [.text(Transcript.TextSegment(content: t(.documentCharge)))])
         return LanguageModelSession(transcript: Transcript(entries: [.instructions(instructionEntry), .prompt(documentEntry), .response(documentResponse)]))
     }
 
@@ -688,14 +692,9 @@ final class ChatModel: ObservableObject {
         isCompressing = true
         defer { isCompressing = false }
         let before = contextTokenCount
-        let request = "Résume en moins de 200 mots les questions posées et les réponses données, en gardant les faits, chiffres et noms exacts. Ne résume pas le document lui-même."
         do {
             let recentTurns = Array(turns.suffix(2))
-            let summarySession = compressionSourceSession(turns: Array(turns.dropLast(2)))
-            let summary = try await summarySession.respond(
-                to: request,
-                options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 300)
-            ).content
+            let summary = try await summarize(turns: Array(turns.dropLast(2)))
             let compressed = compressedSession(document: attachment?.isLoaded == true ? attachment : nil, summary: summary, recentTurns: recentTurns)
             let compressedTokens = try await model.tokenCount(for: compressed.transcript)
             if compressedTokens > Int(Double(contextSize) * 0.85) {
@@ -708,12 +707,19 @@ final class ChatModel: ObservableObject {
             previousSummary = summary
             contextTokenCount = compressedTokens
             compressionFailed = false
-            let documentSuffix = attachment?.isLoaded == true ? " (le document est conservé en entier)." : "."
-            messages.append(ChatItem(role: .system, text: "Conversation compressée : \(formattedNumber(before)) → \(tokenLabel(compressedTokens))\(documentSuffix)", durationMilliseconds: nil))
+            let documentSuffix = attachment?.isLoaded == true ? t(.documentConserve) : "."
+            messages.append(ChatItem(role: .system, text: t(.conversationCompressee, formattedNumber(before), tokenLabel(compressedTokens), documentSuffix), durationMilliseconds: nil))
         } catch {
             compressionFailed = true
             messages.append(ChatItem(role: .error, text: errorText(error), durationMilliseconds: nil))
         }
+    }
+
+    private func summarize(turns: [ConversationTurn]) async throws -> String {
+        try await compressionSourceSession(turns: turns).respond(
+            to: t(.promptCompression),
+            options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 300)
+        ).content
     }
 
     private func appendConversationFullCard(tokens: Int) {
@@ -721,16 +727,16 @@ final class ChatModel: ObservableObject {
             if case .some(.conversationFull) = item.action { return true }
             return false
         }) else { return }
-        messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(contextTokenLabel(tokens, outOf: contextSize))).", durationMilliseconds: nil, action: .conversationFull))
+        messages.append(ChatItem(role: .error, text: t(.conversationPleine, contextTokenLabel(tokens, outOf: contextSize)), durationMilliseconds: nil, action: .conversationFull))
     }
 
     private func compressionSourceSession(turns: [ConversationTurn]) -> LanguageModelSession {
         let instructionEntry = Transcript.Instructions(
-            segments: [.text(Transcript.TextSegment(content: Self.instructions))], toolDefinitions: []
+            segments: [.text(Transcript.TextSegment(content: instructions))], toolDefinitions: []
         )
         var entries: [Transcript.Entry] = [.instructions(instructionEntry)]
         if let previousSummary {
-            let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: "Résumé des échanges précédents :"))])
+            let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: t(.resumeEchangesPrecedents)))])
             let response = Transcript.Response(segments: [.text(Transcript.TextSegment(content: previousSummary))])
             entries += [.prompt(prompt), .response(response)]
         }
@@ -742,17 +748,19 @@ final class ChatModel: ObservableObject {
         return LanguageModelSession(transcript: Transcript(entries: entries))
     }
 
-    private func compressedSession(document: TextAttachment?, summary: String, recentTurns: [ConversationTurn]) -> LanguageModelSession {
+    private func compressedSession(document: TextAttachment?, summary: String?, recentTurns: [ConversationTurn]) -> LanguageModelSession {
         let instructionEntry = Transcript.Instructions(
-            segments: [.text(Transcript.TextSegment(content: Self.instructions))], toolDefinitions: []
+            segments: [.text(Transcript.TextSegment(content: instructions))], toolDefinitions: []
         )
         var entries: [Transcript.Entry] = [.instructions(instructionEntry)]
         if let document {
             let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: documentPrompt(document, question: "")))])
-            entries += [.prompt(prompt), .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: "Document chargé."))]))]
+            entries += [.prompt(prompt), .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: t(.documentCharge)))]))]
         }
-        let summaryPrompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: "Résumé des échanges précédents :"))])
-        entries += [.prompt(summaryPrompt), .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: summary))]))]
+        if let summary {
+            let summaryPrompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: t(.resumeEchangesPrecedents)))])
+            entries += [.prompt(summaryPrompt), .response(Transcript.Response(segments: [.text(Transcript.TextSegment(content: summary))]))]
+        }
         for turn in recentTurns {
             let prompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: turn.question))])
             let response = Transcript.Response(segments: [.text(Transcript.TextSegment(content: turn.answer))])
@@ -764,15 +772,16 @@ final class ChatModel: ObservableObject {
 
 struct ContentView: View {
     @ObservedObject var model: ChatModel
+    @ObservedObject private var langues = Langues.shared
     @Local private var inputHeight: CGFloat = 64
 
     var body: some View {
         Group {
             if let reason = model.unavailableReason {
                 VStack(spacing: 18) {
-                    Text("Le modèle Apple n’est pas disponible : \(reason)")
+                    Text(t(.modeleIndisponible, reason))
                         .multilineTextAlignment(.center)
-                    Button("Ouvrir Réglages Système") {
+                    Button(t(.ouvrirReglagesSysteme)) {
                         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Siri-Settings.extension")!)
                     }
                 }
@@ -794,7 +803,7 @@ struct ContentView: View {
                     .font(.system(size: 28, weight: .bold))
                     .tracking(-0.9)
                     .foregroundStyle(Color(red: 0.16, green: 0.16, blue: 0.18))
-                Button("Nouvelle conversation") { model.newConversation() }
+                Button(t(.nouvelleConversation)) { model.newConversation() }
                     .controlSize(.small)
                     .onKeyPress(.space) {
                         model.newConversation()
@@ -852,14 +861,14 @@ struct ContentView: View {
                         Text(tokenLabel(attachment.tokenCount)).foregroundStyle(Personnalisation.grisTexteSecondaire)
                         Button("×") { model.attachment = nil }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Retirer le fichier")
+                            .accessibilityLabel(t(.retirerFichier))
                         Spacer()
                     }
                     .font(.caption)
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(Color.gray.opacity(0.12), in: Capsule())
                 } else {
-                    Text(String(format: Personnalisation.badgePJ, attachment.name, tokenLabel(attachment.tokenCount)))
+                    Text(t(.badgePJ, attachment.name, tokenLabel(attachment.tokenCount)))
                         .lineLimit(2)
                         .font(.caption)
                         .foregroundStyle(Personnalisation.grisTexteSecondaire)
@@ -870,7 +879,7 @@ struct ContentView: View {
             if model.isAnalyzingDocument {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text("Analyse du document…")
+                    Text(t(.analyseDocument))
                 }
                 .font(.caption)
                 .foregroundStyle(Personnalisation.grisTexteSecondaire)
@@ -883,7 +892,7 @@ struct ContentView: View {
             )
                 .frame(height: inputHeight)
             HStack(spacing: 10) {
-                Button(Personnalisation.boutonAjouterPJ) { model.chooseFile() }
+                Button(t(.boutonAjouterPJ)) { model.chooseFile() }
                     .disabled(model.isSending)
                     .onKeyPress(.space) {
                         model.chooseFile()
@@ -894,7 +903,7 @@ struct ContentView: View {
                         return .handled
                     }
                 Spacer()
-                Button(model.isSending ? "Réponse…" : "Envoyer") { model.send() }
+                Button(model.isSending ? t(.reponseEnCours) : t(.envoyer)) { model.send() }
                     .keyboardShortcut(.return, modifiers: [.command])
                     .disabled(model.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSending)
                     .onKeyPress(.space) {
@@ -919,6 +928,7 @@ struct ContentView: View {
 
 struct ContextGauge: View {
     @ObservedObject var model: ChatModel
+    @ObservedObject private var langues = Langues.shared
 
     var body: some View {
         VStack(spacing: 4) {
@@ -932,7 +942,7 @@ struct ContextGauge: View {
                 .controlSize(.small)
                 .tint(color)
             if model.shouldShowContextSafetyHint {
-                Text("Conversation presque pleine.")
+                Text(t(.conversationPresquePleine))
                     .font(.caption2)
                     .foregroundStyle(Personnalisation.grisTexteSecondaire)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -949,22 +959,20 @@ struct ContextGauge: View {
 
 struct WelcomeView: View {
     @ObservedObject var model: ChatModel
+    @ObservedObject private var langues = Langues.shared
     @Environment(\.openWindow) private var openWindow
 
-    private let suggestions = [
-        Personnalisation.puceResume,
-        Personnalisation.puceCorrection,
-        Personnalisation.puceQuiz,
-        Personnalisation.puceExtraction
-    ]
+    private var suggestions: [String] {
+        [t(.puceResume), t(.puceCorrection), t(.puceQuiz), t(.puceExtraction)]
+    }
 
     var body: some View {
         VStack(spacing: 15) {
-            Text(Personnalisation.titreAccueil)
+            Text(t(.titreAccueil))
                 .font(.headline.weight(.medium))
                 .tracking(0.3)
                 .multilineTextAlignment(.center)
-            Text(Personnalisation.paragrapheAccueil.replacingOccurrences(of: Personnalisation.marqueurNombreLangues, with: String(model.translationLanguages.count)))
+            Text(t(.paragrapheAccueil).replacingOccurrences(of: "COUNT", with: String(model.translationLanguages.count)))
                 .font(.caption)
                 .foregroundStyle(Color(red: 0.28, green: 0.28, blue: 0.30))
                 .multilineTextAlignment(.center)
@@ -976,11 +984,11 @@ struct WelcomeView: View {
                     SuggestionChip(title: suggestion) { model.useAttachmentSuggestion(suggestion) }
                 }
                 TranslationMenu(languages: model.translationLanguages) { language in
-                    model.useAttachmentSuggestion(String(format: Personnalisation.puceTraductionTexte, language.name))
+                    model.useAttachmentSuggestion(t(.puceTraductionTexte, language.name))
                 }
             }
             .frame(maxWidth: 650)
-            Button("Aller plus loin →") {
+            Button(t(.lienAllerPlusLoin)) {
                 openWindow(id: "extension")
             }
             .buttonStyle(.link)
@@ -1002,13 +1010,19 @@ struct SuggestionChip: View {
 }
 
 struct TranslationMenu: View {
+    @ObservedObject private var langues = Langues.shared
     let languages: [TranslationLanguage]
     let select: (TranslationLanguage) -> Void
+
+    init(languages: [TranslationLanguage], select: @escaping (TranslationLanguage) -> Void) {
+        self.languages = languages
+        self.select = select
+    }
 
     var body: some View {
         Menu {
             if languages.isEmpty {
-                Text("Aucune langue disponible")
+                Text(t(.aucuneLangueDisponible))
             } else {
                 ForEach(languages) { language in
                     Button(language.name.localizedCapitalized) { select(language) }
@@ -1016,7 +1030,7 @@ struct TranslationMenu: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Text(Personnalisation.puceTraductionLibelle)
+                Text(t(.puceTraductionLibelle))
                 Image(systemName: "chevron.down").font(.caption2)
             }
             .font(.caption)
@@ -1032,6 +1046,7 @@ struct TranslationMenu: View {
 struct Bubble: View {
     let item: ChatItem
     @ObservedObject var model: ChatModel
+    @ObservedObject private var langues = Langues.shared
     @Local private var isHovering = false
     @Local private var copied = false
 
@@ -1057,9 +1072,9 @@ struct Bubble: View {
                     if case .some(.conversationFull) = item.action {
                         VStack(alignment: .leading, spacing: 6) {
                             if model.attachment?.isLoaded == true {
-                                Button("Nouvelle conversation en gardant le document") { model.newConversationKeepingDocument() }
+                                Button(t(.nouvelleConversationGardantDocument)) { model.newConversationKeepingDocument() }
                             }
-                            Button("Nouvelle conversation") { model.newConversation() }
+                            Button(t(.nouvelleConversation)) { model.newConversation() }
                         }
                         .font(.caption)
                         .buttonStyle(.bordered)
@@ -1071,7 +1086,7 @@ struct Bubble: View {
                 .overlay(alignment: .topTrailing) {
                     if isHovering {
                         Button(action: copy) {
-                            Label(copied ? "Copié" : "Copier", systemImage: "doc.on.doc")
+                            Label(copied ? t(.copie) : t(.copier), systemImage: "doc.on.doc")
                                 .font(.caption)
                                 .padding(.horizontal, 8)
                         }
@@ -1083,7 +1098,7 @@ struct Bubble: View {
                 }
                 .onHover { isHovering = $0 }
                 .contextMenu {
-                    Button("Copier", systemImage: "doc.on.doc", action: copy)
+                    Button(t(.copier), systemImage: "doc.on.doc", action: copy)
                 }
                 if item.role != .user { Spacer(minLength: 65) }
             }
@@ -1104,6 +1119,7 @@ struct OversizedDocumentCard: View {
     let explanation: String
     let parts: [DocumentPart]
     @ObservedObject var model: ChatModel
+    @ObservedObject private var langues = Langues.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1133,11 +1149,8 @@ struct OversizedDocumentCard: View {
     }
 
     private func partLabel(_ part: DocumentPart) -> String {
-        let locale = Locale(identifier: "fr_FR")
-        let start = part.firstWord.formatted(.number.locale(locale))
-        let end = part.lastWord.formatted(.number.locale(locale))
-        let note = part.note.map { " \($0)" } ?? ""
-        return "Partie \(part.id)/\(part.total) — mots \(start) à \(end) — « \(part.preview) »\(note)"
+        let note = part.note == nil ? "" : " " + t(.phraseTresLongueCoupee)
+        return t(.libellePartie, String(part.id), String(part.total), formattedNumber(part.firstWord), formattedNumber(part.lastWord), part.preview) + note
     }
 }
 
@@ -1158,7 +1171,7 @@ struct MultiLineInput: NSViewRepresentable {
         view.delegate = context.coordinator
         view.isRichText = false
         view.font = .systemFont(ofSize: 14)
-        view.setAccessibilityLabel("Message")
+        view.setAccessibilityLabel(t(.champMessage))
         view.textContainerInset = NSSize(width: 4, height: 4)
         view.isVerticallyResizable = true
         view.textContainer?.widthTracksTextView = true
@@ -1172,6 +1185,7 @@ struct MultiLineInput: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let view = scroll.documentView as? SendTextView else { return }
         if view.string != text { view.string = text }
+        view.setAccessibilityLabel(t(.champMessage))
         view.onSend = onSend
         context.coordinator.updateHeight(for: view)
         if context.coordinator.lastFocusRevision != focusRevision {
@@ -1266,6 +1280,9 @@ struct WindowFramePersistence: NSViewRepresentable {
 
 struct FMMiniApp: App {
     @Local private var model = ChatModel()
+    @ObservedObject private var langues = Langues.shared
+
+    init() { MenuLocalizer.installer() }
 
     var body: some Scene {
         Window("FM Mini", id: "main") {
@@ -1281,14 +1298,14 @@ struct FMMiniApp: App {
             AboutCommands()
         }
 
-        Window("Aller plus loin", id: "extension") {
+        Window(langues.texte(.titreAllerPlusLoin), id: "extension") {
             InstallationView()
                 .preferredColorScheme(.light)
         }
         .defaultSize(width: 520, height: 720)
         .windowResizability(.contentMinSize)
 
-        Window("À propos", id: "about") {
+        Window(langues.texte(.titreAPropos), id: "about") {
             AboutView()
                 .preferredColorScheme(.light)
         }
@@ -1299,15 +1316,18 @@ struct FMMiniApp: App {
 
 struct ConversationCommands: Commands {
     @ObservedObject var model: ChatModel
+    @ObservedObject private var langues = Langues.shared
+
+    init(model: ChatModel) { self.model = model }
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("Nouvelle conversation") {
+            Button(t(.nouvelleConversation)) {
                 model.newConversation()
             }
             .keyboardShortcut("n", modifiers: .command)
 
-            Button(Personnalisation.boutonAjouterPJ) {
+            Button(t(.boutonAjouterPJ)) {
                 model.chooseFile()
             }
             .keyboardShortcut("o", modifiers: .command)
@@ -1315,7 +1335,7 @@ struct ConversationCommands: Commands {
         }
 
         CommandGroup(after: .pasteboard) {
-            Button("Copier la dernière réponse") {
+            Button(t(.copierDerniereReponse)) {
                 model.copyLatestResponse()
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
@@ -1325,11 +1345,12 @@ struct ConversationCommands: Commands {
 }
 
 struct InstallationCommands: Commands {
+    @ObservedObject private var langues = Langues.shared
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(after: .help) {
-            Button("Aller plus loin…") {
+            Button(t(.allerPlusLoinMenu)) {
                 openWindow(id: "extension")
             }
         }
@@ -1337,11 +1358,12 @@ struct InstallationCommands: Commands {
 }
 
 struct AboutCommands: Commands {
+    @ObservedObject private var langues = Langues.shared
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
-            Button("À propos de FM Mini") {
+            Button(t(.aProposDeFMMini)) {
                 openWindow(id: "about")
             }
         }
@@ -1349,6 +1371,8 @@ struct AboutCommands: Commands {
 }
 
 struct AboutView: View {
+    @ObservedObject private var langues = Langues.shared
+
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
     }
@@ -1376,7 +1400,7 @@ struct AboutView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 64, height: 64)
-                    .accessibilityLabel("Icône FM Mini")
+                    .accessibilityLabel(t(.iconeFMMini))
             }
             VStack(spacing: 4) {
                 Text("FM Mini").font(.headline.weight(.bold))
@@ -1384,7 +1408,7 @@ struct AboutView: View {
                 Text(Personnalisation.ligneCredits).font(.subheadline)
             }
             .multilineTextAlignment(.center)
-            Text("Tourne entièrement sur votre Mac avec le modèle Apple Foundation Models.")
+            Text(t(.aProposTourne))
                 .font(.caption)
                 .foregroundStyle(Personnalisation.grisTexteSecondaire)
                 .multilineTextAlignment(.center)
@@ -1452,7 +1476,7 @@ enum AutoTest {
         reporter.emit("AUTOTEST découpage unitaire : \(DocumentSplitter.structuredSplitUnitTest() && DocumentSplitter.longSentenceUnitTest() ? "OK" : "ÉCHEC")")
         let suggestionPasses = await MainActor.run { () -> Bool in
             let initialInput = "Texte inchangé"
-            let suggestion = Personnalisation.puceResume
+            let suggestion = Langue.fr.texte(.puceResume)
             let cancelledInput = ChatModel.inputAfterAttachmentSuggestion(currentInput: initialInput, suggestion: suggestion, fileWasAccepted: false)
             let chipModel = ChatModel()
             chipModel.setInput(initialInput)
@@ -1468,7 +1492,7 @@ enum AutoTest {
         reporter.emit("AUTOTEST puces PJ : \(suggestionPasses ? "OK" : "ÉCHEC") — annulation inchangée, PJ chargée insérée sans envoi")
         let pasteboardSnapshot = PasteboardSnapshot()
         defer { pasteboardSnapshot.restore() }
-        let cards = FurtherWindowContent.cards
+        let cards = FurtherWindowContent.cards(.fr)
         let requests = cards.compactMap { card -> String? in
             if case .copy(let request) = card.action { return request }
             return nil
@@ -1484,20 +1508,20 @@ enum AutoTest {
             return 1
         }
         do {
-            let normalSession = LanguageModelSession(instructions: ChatModel.instructions)
+            let normalSession = LanguageModelSession(instructions: ChatModel.instructions(for: .fr))
             let normalStart = Date()
             let normal = try await normalSession.respond(to: "dis-moi ce que tu sais faire")
             let normalHasNoDocumentMention = !normal.content.localizedCaseInsensitiveContains("document")
             reporter.emit("AUTOTEST 0: \(normalHasNoDocumentMention ? "OK" : "ÉCHEC") — \(normal.content) (\(Int(Date().timeIntervalSince(normalStart) * 1_000)) ms)")
 
-            let session = LanguageModelSession(instructions: ChatModel.instructions)
+            let session = LanguageModelSession(instructions: ChatModel.instructions(for: .fr))
             let started = Date()
             let response = try await session.respond(to: "salut")
             let ms = Int(Date().timeIntervalSince(started) * 1_000)
             reporter.emit("AUTOTEST 1: \(response.content) (\(ms) ms)")
 
             let document = Array(repeating: "Ce document explique qu’un jardin partagé permet aux voisins de cultiver ensemble, de réduire les déchets grâce au compost et de créer des liens sociaux durables.", count: 12).joined(separator: " ")
-            let summarySession = LanguageModelSession(instructions: ChatModel.instructions)
+            let summarySession = LanguageModelSession(instructions: ChatModel.instructions(for: .fr))
             let summaryStart = Date()
             let summary = try await summarySession.respond(to: "Réponds uniquement à partir du document ci-dessous.\n\nDocument « autotest-300-mots.txt » :\n\(document)\n\nQuestion : Résume ce document en deux phrases")
             reporter.emit("AUTOTEST 2: \(summary.content) (\(Int(Date().timeIntervalSince(summaryStart) * 1_000)) ms)")
@@ -1525,7 +1549,7 @@ enum AutoTest {
             let fixturePasses = DocumentSplitter.fixtureUnitTest(text: fixtureText, maximumWords: partCapacity)
             let parts = DocumentSplitter.split(oversizedDocument, maximumWords: partCapacity)
             guard parts.count >= 2 else { throw AttachmentReadError.unreadableText }
-            let partTwoSession = LanguageModelSession(instructions: ChatModel.instructions)
+            let partTwoSession = LanguageModelSession(instructions: ChatModel.instructions(for: .fr))
             let partTwoStart = Date()
             let partTwoAnswer = try await partTwoSession.respond(to: attachedPrompt(name: "test-20k.txt — partie 2/\(parts.count)", content: parts[1].content, question: "Quel est le code exclusif de cette partie ?"))
             let selectedPartName = "test-20k.txt — partie 3/\(parts.count)"
@@ -1600,7 +1624,7 @@ enum AutoTest {
 
     private static func sessionWithLoadedDocument(_ document: String) -> LanguageModelSession {
         let instructionEntry = Transcript.Instructions(
-            segments: [.text(Transcript.TextSegment(content: ChatModel.instructions))], toolDefinitions: []
+            segments: [.text(Transcript.TextSegment(content: ChatModel.instructions(for: .fr)))], toolDefinitions: []
         )
         let documentEntry = Transcript.Prompt(
             segments: [.text(Transcript.TextSegment(content: attachedPrompt(name: "document-619-mots.txt", content: document, question: "")))]
@@ -1619,7 +1643,7 @@ enum AutoTest {
 
     private static func compressionTest(model: SystemLanguageModel, document: String, reporter: AutoTestReporter) async throws -> (ok: Bool, before: Int, after: Int, documentAnswer: String, firstQuestionAnswer: String, questionTimings: [Int], documentInjectionCount: Int) {
         let limit = model.contextSize
-        var session = LanguageModelSession(instructions: ChatModel.instructions)
+        var session = LanguageModelSession(instructions: ChatModel.instructions(for: .fr))
         var turns: [ConversationTurn] = []
         let padding = (1...65).map { index in
             "Élément \(index) : le jardin partagé rassemble les voisins, soutient le compost et favorise des liens sociaux durables."
@@ -1663,7 +1687,7 @@ enum AutoTest {
 
     private static func compressionSession(document: String, summary: String, recentTurns: [ConversationTurn]) -> LanguageModelSession {
         let instruction = Transcript.Instructions(
-            segments: [.text(Transcript.TextSegment(content: ChatModel.instructions))], toolDefinitions: []
+            segments: [.text(Transcript.TextSegment(content: ChatModel.instructions(for: .fr)))], toolDefinitions: []
         )
         let documentPrompt = Transcript.Prompt(segments: [.text(Transcript.TextSegment(content: attachedPrompt(name: "document-619-mots.txt", content: document, question: "")))])
         let documentResponse = Transcript.Response(segments: [.text(Transcript.TextSegment(content: "Document chargé."))])
@@ -1681,7 +1705,7 @@ enum AutoTest {
 
     private static func compressionSourceSession(turns: [ConversationTurn]) -> LanguageModelSession {
         let instruction = Transcript.Instructions(
-            segments: [.text(Transcript.TextSegment(content: ChatModel.instructions))], toolDefinitions: []
+            segments: [.text(Transcript.TextSegment(content: ChatModel.instructions(for: .fr)))], toolDefinitions: []
         )
         var entries: [Transcript.Entry] = [.instructions(instruction)]
         for turn in turns {
