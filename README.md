@@ -1,4 +1,4 @@
-# FM Mini 1.3.4
+# FM Mini 1.3.5
 
 FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans fichier joint, elle répond normalement. Avec un seul fichier joint, elle répond uniquement à partir de ce document.
 

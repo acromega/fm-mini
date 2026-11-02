@@ -55,8 +55,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>FMMini</string>
   <key>CFBundleIdentifier</key><string>org.local.fmmini</string>
   <key>CFBundleName</key><string>FM Mini</string>
-  <key>CFBundleShortVersionString</key><string>1.3.4</string>
-  <key>CFBundleVersion</key><string>1.3.4</string>
+  <key>CFBundleShortVersionString</key><string>1.3.5</string>
+  <key>CFBundleVersion</key><string>1.3.5</string>
   <key>LSMinimumSystemVersion</key><string>27.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

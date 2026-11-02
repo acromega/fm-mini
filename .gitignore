@@ -1,0 +1,5 @@
+/.build/
+/build/
+/autotest-*.txt
+/SPEC_files/
+/*.html
