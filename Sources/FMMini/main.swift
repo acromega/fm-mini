@@ -70,6 +70,15 @@ enum DocumentSplitter {
         text.split(whereSeparator: { $0.isWhitespace }).count
     }
 
+    static func structuredSplitUnitTest() -> Bool {
+        let paragraph = (1...400).map { "mot\($0)" }.joined(separator: " ") + "."
+        let document = (1...50).map { _ in paragraph }.joined(separator: "\n\n")
+        let parts = split(document, maximumWords: 3_510)
+        return wordCount(document) == 20_000
+            && parts.allSatisfy { wordCount($0.content) <= 3_510 }
+            && parts.allSatisfy { $0.content.trimmingCharacters(in: .whitespacesAndNewlines).last == "." }
+    }
+
     static func split(_ text: String, maximumWords: Int) -> [DocumentPart] {
         let maximumWords = max(1, maximumWords)
         var pieces: [String] = []
@@ -162,17 +171,9 @@ enum DocumentSplitter {
         sentences.append(String(text[start...]))
         var fragments: [String] = []
         for sentence in sentences where !sentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if wordCount(sentence) <= maximumWords {
-                fragments.append(sentence)
-            } else {
-                let words = sentence.split(whereSeparator: { $0.isWhitespace })
-                var index = 0
-                while index < words.count {
-                    let end = min(index + maximumWords, words.count)
-                    fragments.append(words[index..<end].joined(separator: " "))
-                    index = end
-                }
-            }
+            // Une phrase exceptionnellement plus longue que la fenêtre reste
+            // entière : ne jamais couper un document au milieu d'une phrase.
+            fragments.append(sentence)
         }
         return fragments
     }
@@ -1365,6 +1366,7 @@ enum AutoTest {
     static func run() async {
         let reporter = AutoTestReporter()
         reporter.emit("FM Mini autotest — début")
+        reporter.emit("AUTOTEST découpage unitaire : \(DocumentSplitter.structuredSplitUnitTest() ? "OK" : "ÉCHEC")")
         let model = SystemLanguageModel.default
         guard case .available = model.availability else {
             reporter.emit("AUTOTEST 1: ÉCHEC — modèle indisponible : \(model.availability)")
