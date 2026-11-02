@@ -4,6 +4,10 @@ enum Personnalisation {
     // Change la consigne fixe du modèle ; conservez le français et le vouvoiement si vous voulez le comportement prévu.
     static let consigneModele = "Tu es un assistant. Tu réponds toujours en français, quelle que soit la langue du message. Tu vouvoies la personne."
 
+    static let boutonAjouterPJ = "Ajouter une PJ…"
+    static let aidePJ = "PJ acceptées : .txt .md .csv .json .rtf .docx .pdf (texte, pas de scan) — jusqu'à environ %@ mots"
+    static let badgePJ = "PJ : %@ (%@)"
+
     // Change le titre affiché quand la conversation est vide ; ne retirez pas la ponctuation française.
     static let titreAccueil = "BONJOUR, QUE PUIS-JE FAIRE POUR VOUS ?"
     // Change le mot remplacé par le nombre de langues ; laissez-le présent dans le paragraphe d’accueil.

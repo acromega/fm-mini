@@ -373,7 +373,7 @@ final class ChatModel: ObservableObject {
     var attachmentHint: String {
         let approximateWords = Int((Double(model.contextSize) * 0.9 / 1.4 / 100).rounded() * 100)
         let display = approximateWords > 0 ? approximateWords.formatted(.number.locale(Locale(identifier: "fr_FR"))) : "?"
-        return "Fichiers acceptés : .txt .md .csv .json .rtf .docx .pdf (texte, pas de scan) — jusqu’à environ \(display) mots"
+        return String(format: Personnalisation.aidePJ, display)
     }
 
     var contextSize: Int { model.contextSize }
@@ -852,7 +852,7 @@ struct ContentView: View {
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(Color.gray.opacity(0.12), in: Capsule())
                 } else {
-                    Text("document chargé : \(attachment.name) (\(tokenLabel(attachment.tokenCount)))")
+                    Text(String(format: Personnalisation.badgePJ, attachment.name, tokenLabel(attachment.tokenCount)))
                         .lineLimit(2)
                         .font(.caption)
                         .foregroundStyle(Personnalisation.grisTexteSecondaire)
@@ -879,7 +879,7 @@ struct ContentView: View {
             )
                 .frame(height: inputHeight)
             HStack(spacing: 10) {
-                Button("Joindre un fichier…") { model.chooseFile() }
+                Button(Personnalisation.boutonAjouterPJ) { model.chooseFile() }
                     .disabled(model.isSending)
                     .focused($focusedControl, equals: .attachment)
                     .overlay(focusRing(for: .attachment))
@@ -1377,7 +1377,7 @@ struct ConversationCommands: Commands {
             }
             .keyboardShortcut("n", modifiers: .command)
 
-            Button("Joindre un fichier…") {
+            Button(Personnalisation.boutonAjouterPJ) {
                 model.chooseFile()
             }
             .keyboardShortcut("o", modifiers: .command)
