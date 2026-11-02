@@ -38,6 +38,26 @@ Si le modèle n'est pas disponible, `make-app.sh` s'arrête avec un message et n
 
 La fenêtre s'ouvre pour la première fois au centre de l'écran en format vertical (460 × 760), peut être réduite jusqu'à 400 × 560, et mémorise ensuite sa taille et sa position.
 
+## Installation en une ligne (si vous avez déjà utilisé le Terminal)
+
+```
+git clone https://github.com/acromega/fm-mini.git ~/fm-mini && cd ~/fm-mini && ./make-app.sh && open "build/FM Mini.app"
+```
+
+Sur un Mac neuf, macOS proposera d'abord d'installer les outils en ligne de commande : acceptez, attendez, recollez la ligne. Pour mettre à jour plus tard : `cd ~/fm-mini && git pull && ./make-app.sh && open "build/FM Mini.app"`
+
+## Installation par un assistant (Claude Code, Codex…)
+
+Lancez votre assistant depuis l'app Terminal — sinon le modèle lui est invisible (erreur 1008) — et collez-lui ceci :
+
+```
+Installe FM Mini, une petite application Mac open source (https://github.com/acromega/fm-mini) qui ouvre une fenêtre de chat sur le modèle de langage intégré à macOS 27. Fais exactement ceci, sans modifier le projet :
+1. Vérifie que le Mac est Apple Silicon (uname -m = arm64) et sous macOS 27 ou plus (sw_vers). Sinon, dis-le et arrête-toi.
+2. git clone https://github.com/acromega/fm-mini.git ~/fm-mini (si le dossier existe déjà, fais git pull dedans).
+3. cd ~/fm-mini && ./make-app.sh. Si le script réclame les Command Line Tools, lance xcode-select --install, attends la fin de l'installation, puis relance ./make-app.sh. Si le script dit que le modèle n'est pas disponible, explique-moi comment activer Apple Intelligence dans Réglages Système et arrête-toi. Si tu obtiens l'erreur 1008 « not available in this context », c'est que tu n'as pas été lancé depuis l'app Terminal : dis-le-moi et arrête-toi.
+4. Ouvre l'application avec la commande open affichée par le script, et dis-moi en trois lignes ce que je peux en faire (lis README.md).
+```
+
 ## Utiliser FM Mini
 
 Vous pouvez ajouter une PJ `.txt`, `.md`, `.csv`, `.json`, `.log`, `.rtf`, `.docx` ou `.pdf` contenant du texte, avec le bouton **Ajouter une PJ…** ou le menu **Fichier**. Les PDF issus d'un scan sans texte ne peuvent pas être lus. À l'accueil, les cinq puces ouvrent le sélecteur si aucune PJ n'est chargée ; après acceptation, elles placent leur demande dans le champ sans l'envoyer. Appuyez sur Entrée pour envoyer ; Maj-Entrée ajoute une ligne. Le temps de réponse est affiché sous chaque réponse du modèle.
