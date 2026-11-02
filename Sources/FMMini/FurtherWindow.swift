@@ -61,7 +61,7 @@ struct InstallationView: View {
                     }
                 }
                 Text("Rien n'est installé ni téléchargé par cette fenêtre : elle ouvre des apps déjà présentes ou copie du texte.")
-                    .font(.caption).foregroundStyle(accessibleSecondary).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(.top, 4)
+                    .font(.caption).foregroundStyle(Personnalisation.grisTexteSecondaire).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(.top, 4)
             }.padding(20)
         }.background(Color.white)
     }
@@ -98,7 +98,7 @@ struct FurtherCardView: View {
         VStack(alignment: .leading, spacing: 7) {
             Text(card.title).font(.subheadline.weight(.bold))
             Text("Ce que ça apporte : \(card.benefit)").font(.caption).fixedSize(horizontal: false, vertical: true)
-            Text("Vos données : \(card.data)").font(.caption).foregroundStyle(accessibleSecondary).fixedSize(horizontal: false, vertical: true)
+            Text("Vos données : \(card.data)").font(.caption).foregroundStyle(Personnalisation.grisTexteSecondaire).fixedSize(horizontal: false, vertical: true)
             Button(buttonTitle, action: action).controlSize(.small)
         }
         .padding(12).frame(maxWidth: .infinity, alignment: .leading)

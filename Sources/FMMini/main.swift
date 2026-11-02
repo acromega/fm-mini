@@ -8,7 +8,6 @@ import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-let accessibleSecondary = Color(white: 0.42)
 private let frenchNumberLocale = Locale(identifier: "fr_FR")
 
 private func formattedNumber(_ value: Int) -> String {
@@ -294,7 +293,7 @@ enum AttachmentReader {
 
 @MainActor
 final class ChatModel: ObservableObject {
-    nonisolated static let instructions = "Tu es un assistant. Tu réponds toujours en français, quelle que soit la langue du message. Tu vouvoies la personne."
+    nonisolated static let instructions = Personnalisation.consigneModele
 
     @Published var messages: [ChatItem] = []
     @Published var input = ""
@@ -755,6 +754,7 @@ struct ContentView: View {
             }
         }
         .background(Color.white)
+        .tint(Personnalisation.couleurAccent)
         .background(WindowFramePersistence())
     }
 
@@ -812,7 +812,7 @@ struct ContentView: View {
                 if !attachment.isLoaded {
                     HStack(spacing: 8) {
                         Text(attachment.name).lineLimit(2)
-                        Text(tokenLabel(attachment.tokenCount)).foregroundStyle(accessibleSecondary)
+                        Text(tokenLabel(attachment.tokenCount)).foregroundStyle(Personnalisation.grisTexteSecondaire)
                         Button("×") { model.attachment = nil }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Retirer le fichier")
@@ -825,7 +825,7 @@ struct ContentView: View {
                     Text("document chargé : \(attachment.name) (\(tokenLabel(attachment.tokenCount)))")
                         .lineLimit(2)
                         .font(.caption)
-                        .foregroundStyle(accessibleSecondary)
+                        .foregroundStyle(Personnalisation.grisTexteSecondaire)
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(Color.gray.opacity(0.10), in: Capsule())
                 }
@@ -836,7 +836,7 @@ struct ContentView: View {
                     Text("Analyse du document…")
                 }
                 .font(.caption)
-                .foregroundStyle(accessibleSecondary)
+                .foregroundStyle(Personnalisation.grisTexteSecondaire)
             }
             MultiLineInput(text: $model.input, height: $inputHeight, focusRevision: model.inputRevision, onSend: model.send)
                 .frame(height: inputHeight)
@@ -850,7 +850,7 @@ struct ContentView: View {
             }
             Text(model.attachmentHint)
                 .font(.caption2)
-                .foregroundStyle(accessibleSecondary)
+                .foregroundStyle(Personnalisation.grisTexteSecondaire)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
@@ -866,7 +866,7 @@ struct ContextGauge: View {
             HStack {
                 Text(contextTokenLabel(model.contextTokenCount, outOf: model.contextSize))
                     .font(.caption2)
-                    .foregroundStyle(accessibleSecondary)
+                    .foregroundStyle(Personnalisation.grisTexteSecondaire)
                 Spacer()
             }
             ProgressView(value: min(model.contextRatio, 1))
@@ -875,7 +875,7 @@ struct ContextGauge: View {
             if model.shouldShowContextSafetyHint {
                 Text("Conversation presque pleine.")
                     .font(.caption2)
-                    .foregroundStyle(accessibleSecondary)
+                    .foregroundStyle(Personnalisation.grisTexteSecondaire)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -893,18 +893,18 @@ struct WelcomeView: View {
     @Environment(\.openWindow) private var openWindow
 
     private let suggestions = [
-        "Résume ce texte en trois phrases : ",
-        "Corrige l’orthographe et la grammaire de ce texte : ",
-        "Reformule ce message pour qu’il soit plus clair et plus poli : "
+        (Personnalisation.puceResumeLibelle, Personnalisation.puceResumeTexte),
+        (Personnalisation.puceCorrectionLibelle, Personnalisation.puceCorrectionTexte),
+        (Personnalisation.puceReformulationLibelle, Personnalisation.puceReformulationTexte)
     ]
 
     var body: some View {
         VStack(spacing: 15) {
-            Text("BONJOUR, QUE PUIS-JE FAIRE POUR VOUS ?")
+            Text(Personnalisation.titreAccueil)
                 .font(.headline.weight(.medium))
                 .tracking(0.3)
                 .multilineTextAlignment(.center)
-            Text("Je suis gratuit et je tourne entièrement sur votre Mac : vos textes et vos documents ne quittent jamais votre ordinateur, même sans connexion internet. Je comprends 24 langues, dont le français, et je réponds en une à quelques secondes. Je sais résumer, corriger, reformuler, traduire et extraire l’essentiel de ce que vous me donnez. En revanche, je ne connais pas l’actualité et je n’ai presque pas de connaissances encyclopédiques : donnez-moi le texte sur lequel travailler.")
+            Text(Personnalisation.paragrapheAccueil.replacingOccurrences(of: Personnalisation.marqueurNombreLangues, with: String(model.translationLanguages.count)))
                 .font(.caption)
                 .foregroundStyle(Color(red: 0.28, green: 0.28, blue: 0.30))
                 .multilineTextAlignment(.center)
@@ -912,12 +912,12 @@ struct WelcomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 380)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
-                ForEach(suggestions, id: \.self) { suggestion in
-                    SuggestionChip(title: suggestion) { model.setInput(suggestion) }
+                ForEach(suggestions, id: \.0) { suggestion in
+                    SuggestionChip(title: suggestion.0) { model.setInput(suggestion.1) }
                 }
-                TranslationMenu(languages: model.translationLanguages) { language in model.setInput("Traduis en \(language.name) : ") }
-                SuggestionChip(title: "Joindre un document et en lister les points importants") {
-                    model.chooseFile(questionAfterSelection: "Liste les points importants de ce document.")
+                TranslationMenu(languages: model.translationLanguages) { language in model.setInput(String(format: Personnalisation.puceTraductionTexte, language.name)) }
+                SuggestionChip(title: Personnalisation.puceDocumentLibelle) {
+                    model.chooseFile(questionAfterSelection: Personnalisation.puceDocumentTexte)
                 }
             }
             .frame(maxWidth: 650)
@@ -957,7 +957,7 @@ struct TranslationMenu: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Text("Traduire en…")
+                Text(Personnalisation.puceTraductionLibelle)
                 Image(systemName: "chevron.down").font(.caption2)
             }
             .font(.caption)
@@ -982,7 +982,7 @@ struct Bubble: View {
         } else if item.role == .system {
             Text(item.text)
                 .font(.caption)
-                .foregroundStyle(accessibleSecondary)
+                .foregroundStyle(Personnalisation.grisTexteSecondaire)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 2)
         } else {
@@ -993,7 +993,7 @@ struct Bubble: View {
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                     if let ms = item.durationMilliseconds {
-                        Text("\(ms) ms").font(.caption2).foregroundStyle(accessibleSecondary)
+                        Text("\(ms) ms").font(.caption2).foregroundStyle(Personnalisation.grisTexteSecondaire)
                     }
                     if case .some(.conversationFull) = item.action {
                         VStack(alignment: .leading, spacing: 6) {
@@ -1180,7 +1180,7 @@ struct WindowFramePersistence: NSViewRepresentable {
             if hasSavedFrame {
                 window.setFrameUsingName(autosaveName)
             } else {
-                window.setContentSize(NSSize(width: 460, height: 760))
+                window.setContentSize(Personnalisation.tailleFenetreParDefaut)
                 window.center()
             }
             window.saveFrame(usingName: autosaveName)
@@ -1212,10 +1212,10 @@ struct FMMiniApp: App {
     var body: some Scene {
         Window("FM Mini", id: "main") {
             ContentView(model: model)
-                .frame(minWidth: 400, minHeight: 560)
+                .frame(minWidth: Personnalisation.tailleFenetreMinimale.width, minHeight: Personnalisation.tailleFenetreMinimale.height)
                 .preferredColorScheme(.light)
         }
-        .defaultSize(width: 460, height: 760)
+        .defaultSize(width: Personnalisation.tailleFenetreParDefaut.width, height: Personnalisation.tailleFenetreParDefaut.height)
         .windowResizability(.contentMinSize)
         .commands {
             InstallationCommands()
@@ -1268,7 +1268,7 @@ struct AboutView: View {
     }
 
     private var creditsImage: NSImage? {
-        guard let url = Bundle.main.url(forResource: "credits", withExtension: "jpg") else { return nil }
+        guard let url = Bundle.main.url(forResource: Personnalisation.nomImageCredits, withExtension: "jpg") else { return nil }
         return NSImage(contentsOf: url)
     }
 
@@ -1283,12 +1283,12 @@ struct AboutView: View {
             VStack(spacing: 4) {
                 Text("FM Mini").font(.headline.weight(.bold))
                 Text(version).font(.subheadline)
-                Text("acromega + Claude — 2026").font(.subheadline)
+                Text(Personnalisation.ligneCredits).font(.subheadline)
             }
             .multilineTextAlignment(.center)
             Text("Tourne entièrement sur votre Mac avec le modèle Apple Foundation Models.")
                 .font(.caption)
-                .foregroundStyle(accessibleSecondary)
+                .foregroundStyle(Personnalisation.grisTexteSecondaire)
                 .multilineTextAlignment(.center)
         }
         .padding(20)
