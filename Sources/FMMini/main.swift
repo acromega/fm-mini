@@ -680,7 +680,6 @@ struct ContentView: View {
                     .foregroundStyle(Color(red: 0.16, green: 0.16, blue: 0.18))
                 Button("Nouvelle conversation") { model.newConversation() }
                     .controlSize(.small)
-                    .disabled(model.isSending)
             }
             .frame(maxWidth: .infinity)
             .padding(20)
