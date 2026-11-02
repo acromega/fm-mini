@@ -1,4 +1,4 @@
-# FM Mini — SPECIFICATION 1.3.9
+# FM Mini — SPECIFICATION 1.3.10
 
 PURPOSE. Minimal native macOS chat app for Apple's on-device model (FoundationModels): chat in French, attach one text document, copy answers, discover the ecosystem. Nothing else. Target users: non-developers. Must work first try on a fresh Mac.
 
@@ -9,6 +9,10 @@ LAUNCH CONTEXT RULE. The on-device model is reachable from a command-line proces
 BUILD. SwiftPM executable "FMMini", Swift 6, SwiftUI + FoundationModels (+ AppKit, PDFKit), no third-party dependency. No Swift macros: `@Local` wrapper over State(initialValue:) with Binding projection; ObservableObject + @Published. make-app.sh: preflight → swift build -c release → build/FM Mini.app (bundle id org.local.fmmini, CFBundleShortVersionString = version, LSMinimumSystemVersion 27.0, NSHighResolutionCapable, CFBundleDevelopmentRegion = fr, Contents/Resources/fr.lproj) → codesign --force --deep --sign - → prints the open command. Git: one commit per delivered change, working tree clean at delivery.
 
 WINDOW. Portrait side-panel: default 460×760, minimum 400×560, resizable, frame remembered (frameAutosaveName), centered on first launch. Light scheme, white background. Legible at 400 px wide: no clipping; long file names wrap on two lines rather than being truncated.
+
+MENUS AND KEYBOARD. The macOS menu bar contains, in order, FM Mini, Fichier, Édition, Présentation, Fenêtre and Aide. Fichier contains “Nouvelle conversation” (⌘N), “Joindre un fichier…” (⌘O) and the standard “Fermer” (⌘W). Édition contains “Copier la dernière réponse” (⌘⇧C), disabled when there is no model response. These shortcuts work when the message field has focus.
+
+FOCUS. The app owns its Tab cycle without depending on the macOS “Navigation au clavier” setting: Message → Envoyer → Joindre un fichier… → Nouvelle conversation → Message; Maj-Tab reverses it. A disabled button is skipped. SendTextView handles insertTab and insertBacktab to move through this cycle instead of inserting a tab character. The focused button has a visible ring and Space or Enter activates it.
 
 HEADER (outside the scroll view, centered on the window width): wordmark "FM Mini" (bold ~28 pt, tight tracking, dark grey) — no subtitle; button "Nouvelle conversation"; thin context gauge "N / M jetons" (grey < 60 %, orange < 85 %, red above), recomputed after each turn with tokenCount(for:) over the whole transcript.
 

@@ -39,6 +39,12 @@ Les demandes copiées renvoient à [POUR-LES-ASSISTANTS.md](POUR-LES-ASSISTANTS.
 
 Vous pouvez joindre un fichier `.txt`, `.md`, `.csv`, `.json`, `.log`, `.rtf`, `.docx` ou `.pdf` contenant du texte. Les PDF issus d’un scan sans texte ne peuvent pas être lus. Appuyez sur Entrée pour envoyer ; Maj-Entrée ajoute une ligne. Le temps de réponse est affiché sous chaque réponse du modèle.
 
+## Menus et clavier
+
+Le menu **Fichier** propose **Nouvelle conversation** (⌘N), **Joindre un fichier…** (⌘O) et **Fermer** (⌘W). Le menu **Édition** propose aussi **Copier la dernière réponse** (⌘⇧C). Ces raccourcis fonctionnent même lorsque vous écrivez votre message.
+
+Tab passe de **Message** à **Envoyer**, **Joindre un fichier…**, puis **Nouvelle conversation**, avant de revenir au message ; Maj-Tab suit le chemin inverse. Un bouton indisponible est ignoré. Le bouton actif est entouré et s’active avec Espace ou Entrée.
+
 ## Et si mon document est trop long ?
 
 Le modèle ne peut lire qu’une quantité limitée de texte à la fois : ce n’est pas un bogue. FM Mini découpe alors automatiquement le document en parties, en respectant les titres, les paragraphes et les fins de phrase autant que possible. Choisissez une partie ; elle devient le document chargé pour la prochaine question, et vous pouvez revenir à une autre partie à tout moment. Si cette découpe ne correspond pas à votre besoin, copiez vous-même la section utile dans un petit fichier `.txt`.
