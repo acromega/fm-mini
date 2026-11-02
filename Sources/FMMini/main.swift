@@ -8,6 +8,8 @@ import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private let accessibleSecondary = Color(white: 0.42)
+
 @propertyWrapper
 struct Local<Value>: DynamicProperty {
     private var storage: State<Value>
@@ -752,7 +754,7 @@ struct ContentView: View {
                 if !attachment.isLoaded {
                     HStack(spacing: 8) {
                         Text(attachment.name).lineLimit(2)
-                        Text("\(attachment.tokenCount) jetons").foregroundStyle(.secondary)
+                        Text("\(attachment.tokenCount) jetons").foregroundStyle(accessibleSecondary)
                         Button("×") { model.attachment = nil }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Retirer le fichier")
@@ -765,7 +767,7 @@ struct ContentView: View {
                     Text("document chargé : \(attachment.name) (\(attachment.tokenCount) jetons)")
                         .lineLimit(2)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(accessibleSecondary)
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(Color.gray.opacity(0.10), in: Capsule())
                 }
@@ -782,7 +784,7 @@ struct ContentView: View {
             }
             Text(model.attachmentHint)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(accessibleSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
@@ -798,7 +800,7 @@ struct ContextGauge: View {
             HStack {
                 Text("\(model.contextTokenCount) / \(model.contextSize) jetons")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(accessibleSecondary)
                 Spacer()
             }
             ProgressView(value: min(model.contextRatio, 1))
@@ -807,7 +809,7 @@ struct ContextGauge: View {
             if model.shouldShowContextSafetyHint {
                 Text("Conversation presque pleine.")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(accessibleSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -914,7 +916,7 @@ struct Bubble: View {
         } else if item.role == .system {
             Text(item.text)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(accessibleSecondary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 2)
         } else {
@@ -925,7 +927,7 @@ struct Bubble: View {
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                     if let ms = item.durationMilliseconds {
-                        Text("\(ms) ms").font(.caption2).foregroundStyle(.secondary)
+                        Text("\(ms) ms").font(.caption2).foregroundStyle(accessibleSecondary)
                     }
                     if case .some(.conversationFull) = item.action {
                         VStack(alignment: .leading, spacing: 6) {
@@ -1161,7 +1163,7 @@ struct InstallationView: View {
                 }
                 Text("Toutes ces vérifications sont faites sur votre Mac ; rien n'est téléchargé ni installé par FM Mini.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(accessibleSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 4)
@@ -1188,12 +1190,12 @@ struct InstallationToolCard: View {
                         .frame(width: 8, height: 8)
                     Text(statusText(status))
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(accessibleSecondary)
                 }
                 if let tag = tool.tag {
                     Text(tag)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(accessibleSecondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Color.gray.opacity(0.12), in: Capsule())
@@ -1207,10 +1209,10 @@ struct InstallationToolCard: View {
                 .foregroundStyle(Color.green)
             Label("Inutile si… \(tool.unnecessary)", systemImage: "circle.fill")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(accessibleSecondary)
             Text("Prérequis : \(tool.prerequisite)")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(accessibleSecondary)
             Button("Ouvrir", action: open)
                 .controlSize(.small)
         }
