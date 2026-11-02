@@ -1,4 +1,4 @@
-# FM Mini 1.3.1
+# FM Mini 1.3.3
 
 FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans fichier joint, elle répond normalement. Avec un seul fichier joint, elle répond uniquement à partir de ce document.
 
@@ -44,7 +44,7 @@ FM Mini ne sait pas compter, comparer, détecter une contradiction ou dire de fa
 ## Dépannage
 
 - Si l’application indique que le modèle n’est pas disponible, ouvrez Réglages Système, activez Apple Intelligence et attendez la fin du téléchargement.
-- Si macOS bloque la première ouverture, dans le Finder faites un clic droit sur `FM Mini.app`, puis choisissez **Ouvrir**.
+- FM Mini est signé ad hoc : il est signé localement, sans certificat Apple de distribution. Gatekeeper peut donc bloquer la première ouverture ; dans le Finder, faites un clic droit sur `FM Mini.app`, puis choisissez **Ouvrir**.
 - Si une partie sélectionnée ne répond pas à votre question, choisissez une autre partie dans la carte du document ou joignez un extrait plus court.
 - Lors de la vérification, un script Swift isolé a pu afficher une erreur Apple `ModelManagerServices` alors que l’application signée fonctionnait. Dans ce cas, construisez et ouvrez l’application avec les trois commandes ci-dessus plutôt que d’essayer le modèle depuis un script de shell.
 

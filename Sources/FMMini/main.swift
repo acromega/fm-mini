@@ -653,7 +653,6 @@ struct ContentView: View {
                     .font(.system(size: 28, weight: .bold))
                     .tracking(-0.9)
                     .foregroundStyle(Color(red: 0.16, green: 0.16, blue: 0.18))
-                Text("votre IA locale gratuite").font(.subheadline).foregroundStyle(.secondary)
                 Button("Nouvelle conversation") { model.newConversation() }
                     .controlSize(.small)
                     .disabled(model.isSending)
@@ -786,7 +785,7 @@ struct WelcomeView: View {
                 .font(.headline.weight(.medium))
                 .tracking(0.3)
                 .multilineTextAlignment(.center)
-            Text("Je suis gratuit et je tourne entièrement sur votre Mac : vos textes et vos documents ne quittent jamais votre ordinateur, même sans connexion internet. Je comprends 24 langues, dont le français, et je réponds en une seconde environ. Je sais résumer, corriger, reformuler, traduire et extraire l’essentiel de ce que vous me donnez. En revanche, je ne connais pas l’actualité et je n’ai presque pas de connaissances encyclopédiques : donnez-moi le texte sur lequel travailler.")
+            Text("Je suis gratuit et je tourne entièrement sur votre Mac : vos textes et vos documents ne quittent jamais votre ordinateur, même sans connexion internet. Je comprends 24 langues, dont le français, et je réponds en une à quelques secondes. Je sais résumer, corriger, reformuler, traduire et extraire l’essentiel de ce que vous me donnez. En revanche, je ne connais pas l’actualité et je n’ai presque pas de connaissances encyclopédiques : donnez-moi le texte sur lequel travailler.")
                 .font(.caption)
                 .foregroundStyle(Color(red: 0.28, green: 0.28, blue: 0.30))
                 .multilineTextAlignment(.center)
@@ -1120,11 +1119,11 @@ struct InstallationView: View {
     private let sections: [InstallationSection] = [
         InstallationSection(title: "Déjà sur votre Mac, rien à installer", tools: [
             InstallationTool(id: "fm", name: "fm (dans le Terminal)", about: "parler au même modèle qu'ici en tapant des commandes, et l'enchaîner avec d'autres outils.", needed: "vous aimez le Terminal, ou si vous voulez traiter des fichiers en série (résumer dix textes d'un coup, par exemple).", unnecessary: "vous êtes satisfait de cette fenêtre. FM Mini fait la même chose, en cliquant.", statusKey: "fm", url: nil, tooltip: nil),
-            InstallationTool(id: "shortcuts", name: "Raccourcis → « Utiliser le modèle »", about: "ajouter le modèle à des automatisations sans écrire de code, par exemple un clic droit sur un fichier pour le résumer.", needed: "vous répétez souvent la même tâche sur des fichiers ou des textes.", unnecessary: "vous posez des questions ponctuelles : cette fenêtre suffit.", statusKey: "shortcuts", url: nil, tooltip: nil)
+            InstallationTool(id: "shortcuts", name: "Raccourcis → « Utiliser le modèle »", about: "ajouter le modèle à des automatisations sans écrire de code, par exemple un clic droit sur un fichier pour le résumer.", needed: "vous répétez souvent la même tâche sur des fichiers ou des textes.", unnecessary: "vous posez des questions ponctuelles : cette fenêtre suffit.", statusKey: "shortcuts", url: nil, tooltip: nil)
         ]),
         InstallationSection(title: "Sans programmer", tools: [
-            InstallationTool(id: "lmstudio", name: "LM Studio", about: "faire tourner d'autres modèles sur votre Mac, plus gros et plus cultivés que celui d'Apple, que fm peut ensuite utiliser.", needed: "le modèle Apple vous répond trop souvent « je ne sais pas », et si votre Mac a au moins 16 Go de mémoire (32 Go pour les modèles vraiment plus forts).", unnecessary: "vous travaillez surtout sur vos propres textes : le modèle Apple est plus rapide et déjà là.", statusKey: "lmstudio", url: "https://lmstudio.ai", tooltip: nil),
-            InstallationTool(id: "ollama", name: "Ollama", about: "la même chose que LM Studio, en plus sobre, piloté depuis le Terminal.", needed: "vous préférez le Terminal aux fenêtres, ou si LM Studio ne vous convient pas.", unnecessary: "vous avez déjà LM Studio : l'un ou l'autre, pas les deux.", statusKey: "ollama", url: "https://ollama.com", tooltip: nil),
+            InstallationTool(id: "lmstudio", name: "LM Studio", about: "faire tourner d'autres modèles sur votre Mac, plus gros et plus cultivés que celui d'Apple, que fm peut ensuite utiliser.", needed: "le modèle Apple vous répond trop souvent « je ne sais pas », et si votre Mac a au moins 16 Go de mémoire (32 Go pour les modèles vraiment plus forts).", unnecessary: "vous travaillez surtout sur vos propres textes : le modèle Apple est plus rapide et déjà là.", statusKey: "lmstudio", url: "https://lmstudio.ai", tooltip: nil),
+            InstallationTool(id: "ollama", name: "Ollama", about: "la même chose que LM Studio, en plus sobre, piloté depuis le Terminal.", needed: "vous préférez le Terminal aux fenêtres, ou si LM Studio ne vous convient pas.", unnecessary: "vous avez déjà LM Studio : l'un ou l'autre, pas les deux.", statusKey: "ollama", url: "https://ollama.com", tooltip: nil),
             InstallationTool(id: "homebrew", name: "Homebrew", about: "installer des outils du Terminal en une ligne. C'est un prérequis, pas un outil en soi.", needed: "vous voulez installer apfel, ou tout autre outil « brew install … ».", unnecessary: "vous n'installez rien de la liste ci-dessous.", statusKey: "homebrew", url: "https://brew.sh", tooltip: nil),
             InstallationTool(id: "apfel", name: "apfel", about: "le modèle Apple comme outil du Terminal avec quelques fonctions que fm n'a pas (connexion à des outils externes MCP, scripts tout prêts).", needed: "vous êtes sur macOS 26 (où fm n'existe pas), ou si vous voulez brancher le modèle sur des outils MCP.", unnecessary: "vous êtes sur macOS 27 et que fm vous suffit.", statusKey: "apfel", url: "https://github.com/Arthur-Ficial/apfel", tooltip: nil)
         ]),
@@ -1135,7 +1134,7 @@ struct InstallationView: View {
         ]),
         InstallationSection(title: "Pour développer des applications", tools: [
             InstallationTool(id: "xcode", name: "Xcode", about: "l'atelier complet d'Apple. Indispensable pour certaines fonctions du langage Swift et pour signer une app que vous distribuez.", needed: "vous voulez écrire vos propres apps utilisant le modèle, ou en distribuer. Comptez 15 Go.", unnecessary: "vous utilisez des apps déjà construites, comme celle-ci.", statusKey: "xcode", url: "https://apps.apple.com/app/xcode/id497799835", tooltip: nil),
-            InstallationTool(id: "utilities", name: "Foundation Models utilities (Apple, open source)", about: "des briques officielles pour les développeurs : gérer de longues conversations, définir des « compétences », se connecter à n'importe quel serveur de modèle compatible OpenAI.", needed: "vous développez en Swift avec le modèle.", unnecessary: "vous ne développez pas.", statusKey: nil, url: "https://github.com/apple/foundation-models-utilities", tooltip: nil),
+            InstallationTool(id: "utilities", name: "Foundation Models utilities (Apple, open source)", about: "des briques officielles pour les développeurs : gérer de longues conversations, définir des « compétences », se connecter à n'importe quel serveur de modèle compatible OpenAI.", needed: "vous développez en Swift avec le modèle.", unnecessary: "vous ne développez pas.", statusKey: nil, url: "https://github.com/apple/foundation-models-utilities", tooltip: nil),
             InstallationTool(id: "mcp", name: "Ponts MCP", about: "relier le modèle à des outils externes (dans un sens) ou le mettre à disposition d'autres assistants comme outil (dans l'autre).", needed: "vous utilisez déjà des serveurs MCP et savez ce que c'est.", unnecessary: "cette phrase ne vous dit rien — c'est normal, et ça ne vous manquera pas.", statusKey: nil, url: "https://github.com/airy10/AppleFoundationMCPTool", tooltip: nil)
         ])
     ]
