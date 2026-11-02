@@ -13,7 +13,7 @@ enum Personnalisation {
     // Change le mot remplacé par le nombre de langues ; laissez-le présent dans le paragraphe d’accueil.
     static let marqueurNombreLangues = "COUNT"
     // Change le paragraphe affiché à l’accueil ; conservez le marqueur COUNT pour afficher le nombre réel de langues.
-    static let paragrapheAccueil = "Je suis gratuit et je tourne entièrement sur votre Mac : vos textes et vos documents ne quittent jamais votre ordinateur, même sans connexion internet. Je comprends COUNT langues, dont le français, et je réponds en une à quelques secondes. Je sais résumer, corriger, reformuler, traduire et extraire l’essentiel de ce que vous me donnez. En revanche, je ne connais pas l’actualité et je n’ai presque pas de connaissances encyclopédiques : donnez-moi le texte sur lequel travailler."
+    static let paragrapheAccueil = "Je suis gratuit et je travaille localement sur votre Mac, sans jamais transférer vos documents dans le cloud. Je suis spécialisé dans le traitement du texte en COUNT langues (dont le français) : je sais résumer, corriger, analyser, reformuler, traduire et extraire des informations de la plupart des textes que vous me confierez. En revanche, je ne connais pas l'actualité et mes connaissances encyclopédiques sont très limitées. Essayez-moi !"
 
     // Change le libellé de la puce de résumé ; gardez-le court pour qu’il reste lisible dans la fenêtre.
     static let puceResumeLibelle = "Résume ce texte en trois phrases : "
