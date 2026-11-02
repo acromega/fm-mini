@@ -57,6 +57,7 @@ struct DocumentPart: Identifiable {
     let firstWord: Int
     let lastWord: Int
     let preview: String
+    let note: String?
 }
 
 struct TranslationLanguage: Identifiable {
@@ -66,6 +67,19 @@ struct TranslationLanguage: Identifiable {
 }
 
 enum DocumentSplitter {
+    private struct SentenceUnit {
+        let text: String
+        let words: Int
+        let paragraphBreakAfter: Bool
+    }
+
+    private struct Piece {
+        var text: String
+        var words: Int
+        var paragraphBreakAfter: Bool
+        var note: String?
+    }
+
     static func wordCount(_ text: String) -> Int {
         text.split(whereSeparator: { $0.isWhitespace }).count
     }
@@ -76,106 +90,117 @@ enum DocumentSplitter {
         let parts = split(document, maximumWords: 3_510)
         return wordCount(document) == 20_000
             && parts.allSatisfy { wordCount($0.content) <= 3_510 }
-            && parts.allSatisfy { $0.content.trimmingCharacters(in: .whitespacesAndNewlines).last == "." }
+            && parts.allSatisfy { endsWithTerminalPunctuation($0.content) }
+    }
+
+    static func longSentenceUnitTest() -> Bool {
+        let sentence = (1...5_000).map { "mot\($0)" }.joined(separator: " ") + "."
+        let parts = split(sentence, maximumWords: 3_510)
+        return parts.count == 2
+            && parts.allSatisfy { wordCount($0.content) <= 3_510 }
+            && parts.allSatisfy { $0.note == "(phrase très longue coupée)" }
+    }
+
+    static func fixtureUnitTest(text: String, maximumWords: Int) -> Bool {
+        let parts = split(text, maximumWords: maximumWords)
+        return !parts.isEmpty
+            && parts.allSatisfy { wordCount($0.content) <= maximumWords }
+            && parts.allSatisfy { endsWithTerminalPunctuation($0.content) }
     }
 
     static func split(_ text: String, maximumWords: Int) -> [DocumentPart] {
         let maximumWords = max(1, maximumWords)
-        var pieces: [String] = []
-        var current = ""
+        let preferredBreak = Int(Double(maximumWords) * 0.8)
+        var pieces: [Piece] = []
+        var current = Piece(text: "", words: 0, paragraphBreakAfter: false, note: nil)
 
-        func append(_ unit: String) {
-            let trimmed = unit.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
-            let candidate = current.isEmpty ? trimmed : current + "\n\n" + trimmed
-            if wordCount(candidate) <= maximumWords {
-                current = candidate
-            } else {
-                if !current.isEmpty { pieces.append(current) }
-                if wordCount(trimmed) <= maximumWords {
-                    current = trimmed
-                } else {
-                    let fragments = sentenceFragments(trimmed, maximumWords: maximumWords)
-                    for fragment in fragments {
-                        if current.isEmpty {
-                            current = fragment
-                        } else if wordCount(current + "\n\n" + fragment) <= maximumWords {
-                            current += "\n\n" + fragment
-                        } else {
-                            pieces.append(current)
-                            current = fragment
-                        }
-                    }
+        func closeCurrent() {
+            guard !current.text.isEmpty else { return }
+            pieces.append(current)
+            current = Piece(text: "", words: 0, paragraphBreakAfter: false, note: nil)
+        }
+
+        for sentence in sentenceUnits(text) {
+            if current.words >= preferredBreak && current.paragraphBreakAfter {
+                closeCurrent()
+            }
+
+            if sentence.words > maximumWords {
+                closeCurrent()
+                for group in wordGroups(sentence.text, maximumWords: maximumWords) {
+                    pieces.append(Piece(text: group, words: wordCount(group), paragraphBreakAfter: false, note: "(phrase très longue coupée)"))
                 }
+                continue
+            }
+
+            if current.text.isEmpty {
+                current = Piece(text: sentence.text, words: sentence.words, paragraphBreakAfter: sentence.paragraphBreakAfter, note: nil)
+            } else if current.words + sentence.words <= maximumWords {
+                current.text += current.paragraphBreakAfter ? "\n\n" : " "
+                current.text += sentence.text
+                current.words += sentence.words
+                current.paragraphBreakAfter = sentence.paragraphBreakAfter
+            } else {
+                closeCurrent()
+                current = Piece(text: sentence.text, words: sentence.words, paragraphBreakAfter: sentence.paragraphBreakAfter, note: nil)
             }
         }
-
-        for block in structuralBlocks(text) { append(block) }
-        if !current.isEmpty { pieces.append(current) }
-        if pieces.isEmpty, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            pieces = sentenceFragments(text, maximumWords: maximumWords)
-        }
+        closeCurrent()
 
         var firstWord = 1
         return pieces.enumerated().map { index, piece in
-            let words = wordCount(piece)
             let part = DocumentPart(
                 id: index + 1,
                 total: pieces.count,
-                content: piece,
+                content: piece.text,
                 firstWord: firstWord,
-                lastWord: firstWord + max(0, words - 1),
-                preview: piece.split(whereSeparator: { $0.isWhitespace }).prefix(8).joined(separator: " ")
+                lastWord: firstWord + max(0, piece.words - 1),
+                preview: piece.text.split(whereSeparator: { $0.isWhitespace }).prefix(8).joined(separator: " "),
+                note: piece.note
             )
-            firstWord += words
+            firstWord += piece.words
             return part
         }
     }
 
-    private static func structuralBlocks(_ text: String) -> [String] {
-        var blocks: [String] = []
-        var current: [String] = []
-        func flush() {
-            let block = current.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            if !block.isEmpty { blocks.append(block) }
-            current = []
-        }
-        for line in text.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty {
-                flush()
-            } else if isHeading(trimmed), !current.isEmpty {
-                flush()
-                current.append(line)
-            } else {
-                current.append(line)
-            }
-        }
-        flush()
-        return blocks
-    }
-
-    private static func isHeading(_ line: String) -> Bool {
-        line.hasPrefix("#") || (line.count > 3 && line == line.uppercased() && line.rangeOfCharacter(from: .letters) != nil)
-    }
-
-    private static func sentenceFragments(_ text: String, maximumWords: Int) -> [String] {
-        let regex = try! NSRegularExpression(pattern: "(?<=[.!?])\\s+")
-        var sentences: [String] = []
+    private static func sentenceUnits(_ text: String) -> [SentenceUnit] {
+        let regex = try! NSRegularExpression(pattern: "[.!?…](?=\\s|$)")
+        var units: [SentenceUnit] = []
         var start = text.startIndex
         regex.enumerateMatches(in: text, range: NSRange(text.startIndex..., in: text)) { match, _, _ in
             guard let match, let range = Range(match.range, in: text) else { return }
-            sentences.append(String(text[start..<range.lowerBound]))
-            start = range.upperBound
+            let sentence = String(text[start..<range.upperBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            var next = range.upperBound
+            var newlines = 0
+            while next < text.endIndex, text[next].isWhitespace {
+                if text[next].isNewline { newlines += 1 }
+                next = text.index(after: next)
+            }
+            if !sentence.isEmpty {
+                units.append(SentenceUnit(text: sentence, words: wordCount(sentence), paragraphBreakAfter: newlines >= 2))
+            }
+            start = next
         }
-        sentences.append(String(text[start...]))
-        var fragments: [String] = []
-        for sentence in sentences where !sentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            // Une phrase exceptionnellement plus longue que la fenêtre reste
-            // entière : ne jamais couper un document au milieu d'une phrase.
-            fragments.append(sentence)
+        let trailing = String(text[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trailing.isEmpty {
+            // Le document source peut lui-même s'arrêter sans ponctuation : l'ellipse
+            // rend cette phrase inachevée explicite sans perdre ses mots.
+            let normalized = endsWithTerminalPunctuation(trailing) ? trailing : trailing + "…"
+            units.append(SentenceUnit(text: normalized, words: wordCount(normalized), paragraphBreakAfter: false))
         }
-        return fragments
+        return units
+    }
+
+    private static func wordGroups(_ text: String, maximumWords: Int) -> [String] {
+        let words = text.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        return stride(from: 0, to: words.count, by: maximumWords).map {
+            words[$0..<min($0 + maximumWords, words.count)].joined(separator: " ")
+        }
+    }
+
+    private static func endsWithTerminalPunctuation(_ text: String) -> Bool {
+        guard let last = text.trimmingCharacters(in: .whitespacesAndNewlines).last else { return false }
+        return last == "." || last == "!" || last == "?" || last == "…"
     }
 }
 
@@ -955,7 +980,8 @@ struct OversizedDocumentCard: View {
         let locale = Locale(identifier: "fr_FR")
         let start = part.firstWord.formatted(.number.locale(locale))
         let end = part.lastWord.formatted(.number.locale(locale))
-        return "Partie \(part.id)/\(part.total) — mots \(start) à \(end) — « \(part.preview) »"
+        let note = part.note.map { " \($0)" } ?? ""
+        return "Partie \(part.id)/\(part.total) — mots \(start) à \(end) — « \(part.preview) »\(note)"
     }
 }
 
@@ -1376,7 +1402,7 @@ enum AutoTest {
     static func run() async -> Int {
         let reporter = AutoTestReporter()
         reporter.emit("FM Mini autotest — début")
-        reporter.emit("AUTOTEST découpage unitaire : \(DocumentSplitter.structuredSplitUnitTest() ? "OK" : "ÉCHEC")")
+        reporter.emit("AUTOTEST découpage unitaire : \(DocumentSplitter.structuredSplitUnitTest() && DocumentSplitter.longSentenceUnitTest() ? "OK" : "ÉCHEC")")
         guard auditFixtures(reporter: reporter) else { return 1 }
         let model = SystemLanguageModel.default
         guard case .available = model.availability else {
@@ -1418,6 +1444,11 @@ enum AutoTest {
 
             let oversizedDocument = oversizedTestDocument()
             let partCapacity = max(1, Int(Double(limit) * 0.6 / 1.4))
+            let fixtureURL = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("fm-mini/audit-fixtures/long-20000-mots.txt")
+            let fixtureText = try String(contentsOf: fixtureURL, encoding: .utf8)
+            let fixtureParts = DocumentSplitter.split(fixtureText, maximumWords: partCapacity)
+            let fixturePasses = DocumentSplitter.fixtureUnitTest(text: fixtureText, maximumWords: partCapacity)
             let parts = DocumentSplitter.split(oversizedDocument, maximumWords: partCapacity)
             guard parts.count >= 2 else { throw AttachmentReadError.unreadableText }
             let partTwoSession = LanguageModelSession(instructions: ChatModel.instructions)
@@ -1425,7 +1456,8 @@ enum AutoTest {
             let partTwoAnswer = try await partTwoSession.respond(to: attachedPrompt(name: "test-20k.txt — partie 2/\(parts.count)", content: parts[1].content, question: "Quel est le code exclusif de cette partie ?"))
             let selectedPartName = "test-20k.txt — partie 3/\(parts.count)"
             let partTwoOnly = partTwoAnswer.content.localizedCaseInsensitiveContains("orange")
-            reporter.emit("AUTOTEST 12 découpage: \(parts.count == 6 && partTwoOnly && selectedPartName.contains("partie 3/") ? "OK" : "ÉCHEC") — \(parts.count) puces, partie 2 : \(partTwoAnswer.content) (\(Int(Date().timeIntervalSince(partTwoStart) * 1_000)) ms), badge \(selectedPartName)")
+            let splitPasses = fixturePasses && parts.count == 6 && partTwoOnly && selectedPartName.contains("partie 3/")
+            reporter.emit("AUTOTEST 12 découpage: \(splitPasses ? "OK" : "ÉCHEC") — fixture 20 000 mots : \(fixtureParts.count) parties ; \(parts.count) puces, partie 2 : \(partTwoAnswer.content) (\(Int(Date().timeIntervalSince(partTwoStart) * 1_000)) ms), badge \(selectedPartName)")
 
             return 0
         } catch {
