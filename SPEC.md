@@ -1,4 +1,4 @@
-# FM Mini — SPECIFICATION 1.3.14
+# FM Mini — SPECIFICATION 1.3.15
 
 PURPOSE. Minimal native macOS chat app for Apple's on-device model (FoundationModels): chat in French, attach one text document, copy answers, discover the ecosystem. Nothing else. Target users: non-developers. Must work first try on a fresh Mac.
 
