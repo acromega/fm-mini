@@ -829,8 +829,8 @@ struct Bubble: View {
     private var border: Color { item.role == .model ? Color.gray.opacity(0.35) : .clear }
 
     private func copy() {
-        _ = BubbleClipboard.copy(item.text)
-        copied = true
+        copied = BubbleClipboard.copy(item.text)
+        guard copied else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
     }
 }
