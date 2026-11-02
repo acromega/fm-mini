@@ -591,7 +591,10 @@ final class ChatModel: ObservableObject {
     private func compressConversationIfNeeded() async {
         guard contextRatio > 0.60 else { return }
         guard turns.count > 2, !isCompressing, session != nil else {
-            if contextRatio >= 0.85 { compressionFailed = true }
+            if contextRatio >= 0.85 {
+                compressionFailed = true
+                appendConversationFullCard(tokens: contextTokenCount)
+            }
             return
         }
         isCompressing = true
@@ -609,7 +612,7 @@ final class ChatModel: ObservableObject {
             let compressedTokens = try await model.tokenCount(for: compressed.transcript)
             if compressedTokens > Int(Double(contextSize) * 0.85) {
                 compressionFailed = true
-                messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(before) / \(contextSize) jetons).", durationMilliseconds: nil, action: .conversationFull))
+                appendConversationFullCard(tokens: before)
                 return
             }
             self.session = compressed
@@ -623,6 +626,14 @@ final class ChatModel: ObservableObject {
             compressionFailed = true
             messages.append(ChatItem(role: .error, text: errorText(error), durationMilliseconds: nil))
         }
+    }
+
+    private func appendConversationFullCard(tokens: Int) {
+        guard !messages.contains(where: { item in
+            if case .some(.conversationFull) = item.action { return true }
+            return false
+        }) else { return }
+        messages.append(ChatItem(role: .error, text: "La conversation est pleine (\(tokens) / \(contextSize) jetons).", durationMilliseconds: nil, action: .conversationFull))
     }
 
     private func compressionSourceSession(turns: [ConversationTurn]) -> LanguageModelSession {
@@ -918,7 +929,9 @@ struct Bubble: View {
                     }
                     if case .some(.conversationFull) = item.action {
                         VStack(alignment: .leading, spacing: 6) {
-                            Button("Nouvelle conversation en gardant le document") { model.newConversationKeepingDocument() }
+                            if model.attachment?.isLoaded == true {
+                                Button("Nouvelle conversation en gardant le document") { model.newConversationKeepingDocument() }
+                            }
                             Button("Nouvelle conversation") { model.newConversation() }
                         }
                         .font(.caption)
