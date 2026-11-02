@@ -50,4 +50,4 @@ FM Mini ne sait pas compter, comparer, détecter une contradiction ou dire de fa
 
 ## Vérification technique
 
-Si l’interface ne peut pas être contrôlée automatiquement, exécutez `build/FM Mini.app/Contents/MacOS/FMMini --autotest`. Il vérifie la réponse normale sans document, « salut », un résumé, la fenêtre de contexte, les lectures DOCX et PDF, un PDF sans texte, la limite de 5 Mo, le découpage d’un document de 20 000 mots et la compression d’une conversation.
+Si l’interface ne peut pas être contrôlée automatiquement, ouvrez **Terminal.app**, placez-vous dans le dossier `fm-mini`, puis exécutez `build/FM Mini.app/Contents/MacOS/FMMini --autotest`. Il vérifie la réponse normale sans document, « salut », un résumé, la fenêtre de contexte, la lecture du DOCX et du PDF sans texte des fixtures, la limite de 5 Mo, le découpage d’un document de 20 000 mots et la compression d’une conversation.

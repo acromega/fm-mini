@@ -1325,9 +1325,9 @@ struct FMMiniMain {
     static func main() {
         if CommandLine.arguments.contains("--autotest") {
             Task {
-                await AutoTest.run()
+                let status = await AutoTest.run()
                 fflush(stdout)
-                exit(0)
+                exit(Int32(status))
             }
             dispatchMain()
         } else {
@@ -1363,14 +1363,15 @@ final class AutoTestReporter {
 }
 
 enum AutoTest {
-    static func run() async {
+    static func run() async -> Int {
         let reporter = AutoTestReporter()
         reporter.emit("FM Mini autotest — début")
         reporter.emit("AUTOTEST découpage unitaire : \(DocumentSplitter.structuredSplitUnitTest() ? "OK" : "ÉCHEC")")
+        guard auditFixtures(reporter: reporter) else { return 1 }
         let model = SystemLanguageModel.default
         guard case .available = model.availability else {
             reporter.emit("AUTOTEST 1: ÉCHEC — modèle indisponible : \(model.availability)")
-            return
+            return 1
         }
         do {
             let normalSession = LanguageModelSession(instructions: ChatModel.instructions)
@@ -1386,12 +1387,9 @@ enum AutoTest {
             reporter.emit("AUTOTEST 1: \(response.content) (\(ms) ms)")
 
             let document = Array(repeating: "Ce document explique qu’un jardin partagé permet aux voisins de cultiver ensemble, de réduire les déchets grâce au compost et de créer des liens sociaux durables.", count: 12).joined(separator: " ")
-            let documentURL = FileManager.default.temporaryDirectory.appendingPathComponent("fm-mini-autotest-300-mots.txt")
-            try document.write(to: documentURL, atomically: true, encoding: .utf8)
-            let attachedDocument = try String(contentsOf: documentURL, encoding: .utf8)
             let summarySession = LanguageModelSession(instructions: ChatModel.instructions)
             let summaryStart = Date()
-            let summary = try await summarySession.respond(to: "Réponds uniquement à partir du document ci-dessous.\n\nDocument « \(documentURL.lastPathComponent) » :\n\(attachedDocument)\n\nQuestion : Résume ce document en deux phrases")
+            let summary = try await summarySession.respond(to: "Réponds uniquement à partir du document ci-dessous.\n\nDocument « autotest-300-mots.txt » :\n\(document)\n\nQuestion : Résume ce document en deux phrases")
             reporter.emit("AUTOTEST 2: \(summary.content) (\(Int(Date().timeIntervalSince(summaryStart) * 1_000)) ms)")
 
             let largeDocument = Array(repeating: "mot", count: 20_000).joined(separator: " ")
@@ -1408,12 +1406,9 @@ enum AutoTest {
             let pasteboardMatches = BubbleClipboard.copy(copiedText) && NSPasteboard.general.string(forType: .string) == copiedText
             reporter.emit("AUTOTEST 9 presse-papiers: \(pasteboardMatches ? "OK" : "ÉCHEC")")
 
-            let oversizedURL = FileManager.default.temporaryDirectory.appendingPathComponent("fm-mini-autotest-20k-mots.txt")
             let oversizedDocument = oversizedTestDocument()
-            try oversizedDocument.write(to: oversizedURL, atomically: true, encoding: .utf8)
-            let oversizedText = try AttachmentReader.read(url: oversizedURL)
             let partCapacity = max(1, Int(Double(limit) * 0.6 / 1.4))
-            let parts = DocumentSplitter.split(oversizedText, maximumWords: partCapacity)
+            let parts = DocumentSplitter.split(oversizedDocument, maximumWords: partCapacity)
             guard parts.count >= 2 else { throw AttachmentReadError.unreadableText }
             let partTwoSession = LanguageModelSession(instructions: ChatModel.instructions)
             let partTwoStart = Date()
@@ -1422,9 +1417,50 @@ enum AutoTest {
             let partTwoOnly = partTwoAnswer.content.localizedCaseInsensitiveContains("orange")
             reporter.emit("AUTOTEST 12 découpage: \(parts.count == 6 && partTwoOnly && selectedPartName.contains("partie 3/") ? "OK" : "ÉCHEC") — \(parts.count) puces, partie 2 : \(partTwoAnswer.content) (\(Int(Date().timeIntervalSince(partTwoStart) * 1_000)) ms), badge \(selectedPartName)")
 
+            return 0
         } catch {
+            if isModelContextError(error) {
+                reporter.emit("Modèle inaccessible depuis ce contexte : lancez l'autotest depuis Terminal.app")
+                return 2
+            }
             reporter.emit("AUTOTEST: ÉCHEC — \(error.localizedDescription)")
+            return 1
         }
+    }
+
+    private static func auditFixtures(reporter: AutoTestReporter) -> Bool {
+        let fixtures = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("fm-mini/audit-fixtures", isDirectory: true)
+        do {
+            let docx = try AttachmentReader.read(url: fixtures.appendingPathComponent("compte-rendu-comite-des-fetes.docx"))
+            let scanResult: Bool
+            do {
+                _ = try AttachmentReader.read(url: fixtures.appendingPathComponent("scan-sans-texte.pdf"))
+                scanResult = false
+            } catch AttachmentReadError.scannedPDF {
+                scanResult = true
+            }
+            let underLimit = try AttachmentReader.read(url: fixtures.appendingPathComponent("4_9Mo.txt"))
+            let overLimit: Bool
+            do {
+                _ = try AttachmentReader.read(url: fixtures.appendingPathComponent("5_1Mo.txt"))
+                overLimit = false
+            } catch AttachmentReadError.tooLarge(let bytes) {
+                overLimit = bytes == 5_100_000
+            }
+            let ok = !docx.isEmpty && scanResult && !underLimit.isEmpty && overLimit
+            reporter.emit("AUTOTEST fichiers DOCX/PDF/scan/5 Mo : \(ok ? "OK" : "ÉCHEC")")
+            return ok
+        } catch {
+            reporter.emit("AUTOTEST fichiers DOCX/PDF/scan/5 Mo : ÉCHEC — \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    private static func isModelContextError(_ error: Error) -> Bool {
+        let description = "\(error) \(error.localizedDescription)".lowercased()
+        return (description.contains("modelmanagererror") && description.contains("1008"))
+            || description.contains("not available in this context")
     }
 
     private static func attachedPrompt(name: String, content: String, question: String) -> String {
