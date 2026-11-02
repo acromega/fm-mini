@@ -1,4 +1,4 @@
-# FM Mini 1.3.12
+# FM Mini 1.3.13
 
 FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans PJ, elle répond normalement. Avec une seule PJ, elle répond uniquement à partir de ce document.
 
@@ -49,7 +49,7 @@ Vous pouvez ajouter une PJ `.txt`, `.md`, `.csv`, `.json`, `.log`, `.rtf`, `.doc
 
 Le menu **Fichier** propose **Nouvelle conversation** (⌘N), **Ajouter une PJ…** (⌘O) et **Fermer** (⌘W). Le menu **Édition** propose aussi **Copier la dernière réponse** (⌘⇧C). Ces raccourcis fonctionnent même lorsque vous écrivez votre message.
 
-Tab passe de **Message** à **Envoyer**, **Ajouter une PJ…**, puis **Nouvelle conversation**, avant de revenir au message ; Maj-Tab suit le chemin inverse. Un bouton indisponible est ignoré. Le bouton actif est entouré et s’active avec Espace ou Entrée.
+Tab suit le réglage macOS Réglages Système → Clavier → Navigation au clavier ; toutes les actions ont un raccourci : ⌘N, ⌘O, Entrée, ⌘⇧C.
 
 ## Et si mon document est trop long ?
 

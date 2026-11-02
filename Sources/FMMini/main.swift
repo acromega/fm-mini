@@ -762,14 +762,9 @@ final class ChatModel: ObservableObject {
     }
 }
 
-private enum ConversationFocus: Hashable {
-    case message, send, attachment, newConversation
-}
-
 struct ContentView: View {
     @ObservedObject var model: ChatModel
     @Local private var inputHeight: CGFloat = 64
-    @FocusState private var focusedControl: ConversationFocus?
 
     var body: some View {
         Group {
@@ -790,7 +785,6 @@ struct ContentView: View {
         .background(Color.white)
         .tint(Personnalisation.couleurAccent)
         .background(WindowFramePersistence())
-        .onAppear { focusedControl = .message }
     }
 
     private var chat: some View {
@@ -802,13 +796,6 @@ struct ContentView: View {
                     .foregroundStyle(Color(red: 0.16, green: 0.16, blue: 0.18))
                 Button("Nouvelle conversation") { model.newConversation() }
                     .controlSize(.small)
-                    .focused($focusedControl, equals: .newConversation)
-                    .overlay(focusRing(for: .newConversation))
-                    .onKeyPress(phases: .down) { press in
-                        guard press.key == .tab else { return .ignored }
-                        moveFocus(forward: !press.modifiers.contains(.shift))
-                        return .handled
-                    }
                     .onKeyPress(.space) {
                         model.newConversation()
                         return .handled
@@ -892,22 +879,12 @@ struct ContentView: View {
                 text: $model.input,
                 height: $inputHeight,
                 focusRevision: model.inputRevision,
-                isFocused: focusedControl == .message,
-                onFocus: { focusedControl = .message },
-                onMoveFocus: moveFocus,
                 onSend: model.send
             )
                 .frame(height: inputHeight)
             HStack(spacing: 10) {
                 Button(Personnalisation.boutonAjouterPJ) { model.chooseFile() }
                     .disabled(model.isSending)
-                    .focused($focusedControl, equals: .attachment)
-                    .overlay(focusRing(for: .attachment))
-                    .onKeyPress(phases: .down) { press in
-                        guard press.key == .tab else { return .ignored }
-                        moveFocus(forward: !press.modifiers.contains(.shift))
-                        return .handled
-                    }
                     .onKeyPress(.space) {
                         model.chooseFile()
                         return .handled
@@ -920,13 +897,6 @@ struct ContentView: View {
                 Button(model.isSending ? "Réponse…" : "Envoyer") { model.send() }
                     .keyboardShortcut(.return, modifiers: [.command])
                     .disabled(model.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSending)
-                    .focused($focusedControl, equals: .send)
-                    .overlay(focusRing(for: .send))
-                    .onKeyPress(phases: .down) { press in
-                        guard press.key == .tab else { return .ignored }
-                        moveFocus(forward: !press.modifiers.contains(.shift))
-                        return .handled
-                    }
                     .onKeyPress(.space) {
                         model.send()
                         return .handled
@@ -945,42 +915,6 @@ struct ContentView: View {
         .background(Color.white)
     }
 
-    @ViewBuilder
-    private func focusRing(for target: ConversationFocus) -> some View {
-        if focusedControl == target {
-            RoundedRectangle(cornerRadius: 5)
-                .stroke(Personnalisation.couleurAccent, lineWidth: 3)
-                .padding(-3)
-                .allowsHitTesting(false)
-        }
-    }
-
-    private func moveFocus(forward: Bool) {
-        let targets: [ConversationFocus] = [.message, .send, .attachment, .newConversation]
-        let current = focusedControl ?? .message
-        guard let index = targets.firstIndex(of: current) else {
-            focusedControl = .message
-            return
-        }
-        for offset in 1...targets.count {
-            let candidate = targets[(index + (forward ? offset : targets.count - offset)) % targets.count]
-            if candidate == .message || isFocusEnabled(candidate) {
-                focusedControl = candidate
-                return
-            }
-        }
-    }
-
-    private func isFocusEnabled(_ target: ConversationFocus) -> Bool {
-        switch target {
-        case .message, .newConversation:
-            return true
-        case .send:
-            return !model.isSending && !model.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .attachment:
-            return !model.isSending
-        }
-    }
 }
 
 struct ContextGauge: View {
@@ -1212,9 +1146,6 @@ struct MultiLineInput: NSViewRepresentable {
     @Binding var text: String
     @Binding var height: CGFloat
     let focusRevision: Int
-    let isFocused: Bool
-    let onFocus: () -> Void
-    let onMoveFocus: (Bool) -> Void
     let onSend: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -1233,8 +1164,6 @@ struct MultiLineInput: NSViewRepresentable {
         view.textContainer?.widthTracksTextView = true
         view.drawsBackground = true
         view.backgroundColor = .white
-        view.onFocus = onFocus
-        view.onMoveFocus = onMoveFocus
         view.onSend = onSend
         scroll.documentView = view
         return scroll
@@ -1243,16 +1172,11 @@ struct MultiLineInput: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let view = scroll.documentView as? SendTextView else { return }
         if view.string != text { view.string = text }
-        view.onFocus = onFocus
-        view.onMoveFocus = onMoveFocus
         view.onSend = onSend
         context.coordinator.updateHeight(for: view)
         if context.coordinator.lastFocusRevision != focusRevision {
             context.coordinator.lastFocusRevision = focusRevision
             view.setSelectedRange(NSRange(location: view.string.utf16.count, length: 0))
-            view.window?.makeFirstResponder(view)
-        }
-        if isFocused, view.window?.firstResponder !== view {
             view.window?.makeFirstResponder(view)
         }
     }
@@ -1283,25 +1207,11 @@ struct MultiLineInput: NSViewRepresentable {
 }
 
 final class SendTextView: NSTextView {
-    var onFocus: (() -> Void)?
-    var onMoveFocus: ((Bool) -> Void)?
     var onSend: (() -> Void)?
 
-    override func becomeFirstResponder() -> Bool {
-        let didBecomeFirstResponder = super.becomeFirstResponder()
-        if didBecomeFirstResponder { onFocus?() }
-        return didBecomeFirstResponder
-    }
-
-    override func insertTab(_ sender: Any?) {
-        guard let onMoveFocus else { return super.insertTab(sender) }
-        onMoveFocus(true)
-    }
-
-    override func insertBacktab(_ sender: Any?) {
-        guard let onMoveFocus else { return super.insertBacktab(sender) }
-        onMoveFocus(false)
-    }
+    // Tab ne tape jamais de tabulation : il suit la boucle de focus AppKit, donc le réglage « Navigation au clavier ».
+    override func insertTab(_ sender: Any?) { window?.selectNextKeyView(self) }
+    override func insertBacktab(_ sender: Any?) { window?.selectPreviousKeyView(self) }
 
     override func keyDown(with event: NSEvent) {
         if (event.keyCode == 36 || event.keyCode == 76)

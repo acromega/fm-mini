@@ -1,4 +1,4 @@
-# FM Mini — SPECIFICATION 1.3.12
+# FM Mini — SPECIFICATION 1.3.13
 
 PURPOSE. Minimal native macOS chat app for Apple's on-device model (FoundationModels): chat in French, attach one text document, copy answers, discover the ecosystem. Nothing else. Target users: non-developers. Must work first try on a fresh Mac.
 
@@ -14,7 +14,7 @@ WINDOW. Portrait side-panel: default 460×760, minimum 400×560, resizable, fram
 
 MENUS AND KEYBOARD. The macOS menu bar contains, in order, FM Mini, Fichier, Édition, Présentation, Fenêtre and Aide. Fichier contains “Nouvelle conversation” (⌘N), “Ajouter une PJ…” (⌘O) and the standard “Fermer” (⌘W). Édition contains “Copier la dernière réponse” (⌘⇧C), disabled when there is no model response. These shortcuts work when the message field has focus.
 
-FOCUS. The app owns its Tab cycle without depending on the macOS “Navigation au clavier” setting: Message → Envoyer → Ajouter une PJ… → Nouvelle conversation → Message; Maj-Tab reverses it. A disabled button is skipped. SendTextView handles insertTab and insertBacktab to move through this cycle instead of inserting a tab character. The focused button has a visible ring and Space or Enter activates it.
+FOCUS. Tab suit le réglage macOS Réglages Système → Clavier → Navigation au clavier ; toutes les actions ont un raccourci : ⌘N, ⌘O, Entrée, ⌘⇧C.
 
 HEADER (outside the scroll view, centered on the window width): wordmark "FM Mini" (bold ~28 pt, tight tracking, dark grey) — no subtitle; button "Nouvelle conversation"; thin context gauge "N / M jetons" (grey < 60 %, orange < 85 %, red above), recomputed after each turn with tokenCount(for:) over the whole transcript.
 
