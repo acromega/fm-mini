@@ -1,4 +1,4 @@
-# FM Mini 1.3.9
+# FM Mini 1.3.10
 
 FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans fichier joint, elle répond normalement. Avec un seul fichier joint, elle répond uniquement à partir de ce document.
 
@@ -20,6 +20,16 @@ Un document joint n’est envoyé qu’avec la première question : le badge « 
 3. Lancez `open "build/FM Mini.app"`.
 
 La fenêtre s’ouvre pour la première fois au centre de l’écran en format vertical (460 × 760), peut être réduite jusqu’à 400 × 560, et mémorise ensuite sa taille et sa position.
+
+## Personnaliser FM Mini
+
+Vous pouvez adapter les textes, les couleurs, les crédits et la taille de la fenêtre dans [Personnalisation.swift](Sources/FMMini/Personnalisation.swift), sans toucher au reste du dossier.
+
+1. Dans le Finder, faites un clic droit sur `Sources/FMMini/Personnalisation.swift`, choisissez **Ouvrir avec**, puis **TextEdit**.
+2. Modifiez seulement le texte entre guillemets (ou les deux nombres de `CGSize` pour la taille de la fenêtre), puis enregistrez.
+3. Dans Terminal, à la racine de `fm-mini`, relancez `./make-app.sh`.
+
+Par exemple, vous pouvez changer une puce en remplaçant le texte de `puceResumeLibelle` et `puceResumeTexte`, tutoyer en remplaçant « vous » par « tu » dans `consigneModele`, ou agrandir la fenêtre en augmentant `width` et `height` de `tailleFenetreParDefaut`. Ne modifiez ni les noms des constantes, ni les commentaires, ni un autre fichier du dossier.
 
 ## Aller plus loin
 
