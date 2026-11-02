@@ -1,4 +1,4 @@
-# FM Mini 1.3.5
+# FM Mini 1.3.6
 
 FM Mini est une petite application de discussion qui utilise uniquement le modèle Apple présent sur votre Mac. Sans fichier joint, elle répond normalement. Avec un seul fichier joint, elle répond uniquement à partir de ce document.
 
@@ -13,8 +13,8 @@ Un document joint n’est envoyé qu’avec la première question : le badge « 
 
 ## Installation et démarrage
 
-1. Copiez le dossier `fm-mini` sur votre Mac.
-2. Dans Terminal, lancez `./make-app.sh` depuis ce dossier.
+1. Copiez le dossier `fm-mini` dans votre dossier personnel, pour obtenir `~/fm-mini`.
+2. Dans Terminal, lancez `cd ~/fm-mini`, puis `./make-app.sh`.
 3. Lancez `open "build/FM Mini.app"`.
 
 La fenêtre s’ouvre pour la première fois au centre de l’écran en format vertical (460 × 760), peut être réduite jusqu’à 400 × 560, et mémorise ensuite sa taille et sa position.
@@ -44,8 +44,9 @@ FM Mini ne sait pas compter, comparer, détecter une contradiction ou dire de fa
 ## Dépannage
 
 - Si l’application indique que le modèle n’est pas disponible, ouvrez Réglages Système, activez Apple Intelligence et attendez la fin du téléchargement.
-- FM Mini est signé ad hoc : il est signé localement, sans certificat Apple de distribution. Gatekeeper peut donc bloquer la première ouverture ; dans le Finder, faites un clic droit sur `FM Mini.app`, puis choisissez **Ouvrir**.
+- FM Mini est signé ad hoc : il est signé localement, sans certificat Apple de distribution. Gatekeeper peut d’abord afficher seulement **Placer dans la corbeille** et **Terminé**. Cliquez sur **Terminé**, puis ouvrez **Réglages Système → Confidentialité et sécurité** et choisissez **Ouvrir quand même** pour FM Mini.
 - Si une partie sélectionnée ne répond pas à votre question, choisissez une autre partie dans la carte du document ou joignez un extrait plus court.
+- Un fichier de plusieurs Mo peut demander quelques dizaines de secondes à lire et à découper ; l’indication **Analyse du document…** reste visible pendant ce travail.
 - Lors de la vérification, un script Swift isolé a pu afficher une erreur Apple `ModelManagerServices` alors que l’application signée fonctionnait. Dans ce cas, construisez et ouvrez l’application avec les trois commandes ci-dessus plutôt que d’essayer le modèle depuis un script de shell.
 
 ## Vérification technique
