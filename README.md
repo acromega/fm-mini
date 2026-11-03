@@ -1,3 +1,5 @@
+🇫🇷 [Français](README.fr.md) · 🇬🇧 [English](README.md)
+
 # FM Mini
 
 ![Demo: summarizing a 300-word attachment in a few seconds](docs/demo.gif)

@@ -1,3 +1,5 @@
+🇫🇷 [Français](README.fr.md) · 🇬🇧 [English](README.md)
+
 # FM Mini
 
 ![Démo : résumé d'une pièce jointe de 300 mots en quelques secondes](docs/demo.gif)
